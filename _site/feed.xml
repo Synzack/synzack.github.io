@@ -1,0 +1,227 @@
+<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="3.8.7">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2020-05-27T07:23:52-04:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">Red Team Blog</title><subtitle>An amazing website.</subtitle><author><name>Zach Stein</name></author><entry><title type="html">Weaponizing 28 Year Old Xlm Macros</title><link href="http://localhost:4000/Weaponizing-28-Year-Old-XLM-Macros/" rel="alternate" type="text/html" title="Weaponizing 28 Year Old Xlm Macros" /><published>2020-05-25T00:00:00-04:00</published><updated>2020-05-25T00:00:00-04:00</updated><id>http://localhost:4000/Weaponizing-28-Year-Old-XLM-Macros</id><content type="html" xml:base="http://localhost:4000/Weaponizing-28-Year-Old-XLM-Macros/">&lt;h1 id=&quot;overview&quot;&gt;Overview&lt;/h1&gt;
+
+&lt;p&gt;Excel 4.0 macros (XLM macros) are a feature of Microsoft Excel that date back to 1992. These macros can be embedded into an Excel sheet and do not use VBA. This is significant as many modern exploit campaigns utilize &lt;a href=&quot;https://docs.microsoft.com/en-us/office/vba/api/overview/&quot;&gt;VBA&lt;/a&gt; (Visual Basic for Applications) macros, which many security appliances have signatures for.&lt;/p&gt;
+
+&lt;p&gt;While these macros have been around for many years, research into weaponizing them is relatively new. This paper is an extension of research done by &lt;a href=&quot;https://outflank.nl/blog/2018/10/06/old-school-evil-excel-4-0-macros-xlm/&quot;&gt;Outflank&lt;/a&gt; and &lt;a href=&quot;https://www.cybereason.com/blog/excel4.0-macros-now-with-twice-the-bits&quot;&gt;Cyber Reason&lt;/a&gt;.&lt;/p&gt;
+
+&lt;h1 id=&quot;offensive-advantages&quot;&gt;Offensive Advantages&lt;/h1&gt;
+
+&lt;p&gt;From an offensive perspective, Excel 4.0 macros provide the following advantages:&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;4.0 macros are stored differently than VBA macros, evading many AV signatures&lt;/li&gt;
+  &lt;li&gt;Utilizing 4.0 macros has the potential to bypass &lt;a href=&quot;https://docs.microsoft.com/en-us/windows/win32/amsi/antimalware-scan-interface-portal&quot;&gt;AMSI&lt;/a&gt; (Antimalware Scan Interface)&lt;/li&gt;
+  &lt;li&gt;4.0 macros be easily hidden within excel sheets&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h2 id=&quot;vba-vs-xlm-storage&quot;&gt;VBA vs XLM Storage&lt;/h2&gt;
+
+&lt;p&gt;The following screenshot from Outflank demonstrates how VBA (left) and XLM (right) are stored in Excel containers in a 97-2003 format (.xls). VBA macros are stored in &lt;a href=&quot;https://docs.microsoft.com/en-us/cpp/mfc/ole-background?view=vs-2019&quot;&gt;OLE&lt;/a&gt; (Object Linking and Embedding) streams under the containers, while XLM macros are embedded within the Workbook OLE stream. This adds an extra layer of stealth when trying to detect XLM macros with AV and other solutions.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Weaponizing-28-Year-Old-Macros/OLE-Streams.jpg&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;h1 id=&quot;example-of-a-40-macro&quot;&gt;Example of a 4.0 Macro&lt;/h1&gt;
+
+&lt;p&gt;In an excel sheet, the 4.0 macro option can be found by simply right-clicking on the current sheet and selecting &lt;strong&gt;&lt;em&gt;Insert -&amp;gt; MS Excel 4.0 Macro&lt;/em&gt;&lt;/strong&gt;.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Weaponizing-28-Year-Old-Macros/create-step1.jpg&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Weaponizing-28-Year-Old-Macros/create-step2.jpg&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Weaponizing-28-Year-Old-Macros/create-step3.jpg&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;The macro functions are called directly in the sheet cells and can perform a wide range of commands. For example, we can run EXEC to execute system commands and ALERT to
+create pop-up messages.&lt;/p&gt;
+
+&lt;p&gt;&lt;em&gt;*A full list of Excel 4.0 Macro functions can be found at the following &lt;a href=&quot;https://d13ot9o61jdzpp.cloudfront.net/files/Excel%204.0%20Macro%20Functions%20Reference.pdf&quot;&gt;link&lt;/a&gt;&lt;/em&gt;.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Weaponizing-28-Year-Old-Macros/run1.jpg&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Weaponizing-28-Year-Old-Macros/run2.jpg&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;br /&gt;&lt;/p&gt;
+&lt;h1 id=&quot;enhancing-execution-and-stealth&quot;&gt;Enhancing Execution and Stealth&lt;/h1&gt;
+
+&lt;p&gt;&lt;strong&gt;Auto_Open&lt;/strong&gt;&lt;/p&gt;
+
+&lt;p&gt;Just like the VBA counterpart, these macros can be set to automatically run when the document
+is opened (assuming macros are enabled in the settings or the user enables them).
+To do this, the starting cell just needs to be renamed to “&lt;em&gt;Auto_Open&lt;/em&gt;”.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Weaponizing-28-Year-Old-Macros/auto-open1.jpg&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Weaponizing-28-Year-Old-Macros/auto-open2.jpg&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;Hiding the Macro&lt;/strong&gt;&lt;/p&gt;
+
+&lt;p&gt;As the macro is technically a sheet within excel, it contains many of the same functionality. For example, it can be hidden just like a regular cell.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Weaponizing-28-Year-Old-Macros/hide.jpg&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;Saving as an XLSM/XLS file&lt;/strong&gt;&lt;/p&gt;
+
+&lt;p&gt;While 4.0 macros are not the same as VBA macros, the document still needs to be saved as an
+XLSM or XLS file to be a macro enabled document. If the excel settings are set to warn the user
+before enabling macros, this banner will still display with a 4.0 macro document.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Weaponizing-28-Year-Old-Macros/enable1.jpg&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Weaponizing-28-Year-Old-Macros/enable2.jpg&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Now, we have a fully functioning macro that will open on start, be essentially invisible to the end
+user, and will not show in the document macro ribbon. This will likely fool the unsuspecting
+victim, even if they are aware of VBA macro risks.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Weaponizing-28-Year-Old-Macros/locations.jpg&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;h1 id=&quot;weaponizing-the-macro&quot;&gt;Weaponizing the Macro&lt;/h1&gt;
+
+&lt;p&gt;While command execution can result in compromise a machine, what if we were able to further
+weaponize these macros?&lt;/p&gt;
+
+&lt;p&gt;The researchers at Outflank discovered that by utilizing the &lt;em&gt;REGISTER&lt;/em&gt; and &lt;em&gt;CALL&lt;/em&gt; functions of
+these macros, they can call the Win32 API and can inject shellcode into the running process.&lt;/p&gt;
+
+&lt;p&gt;The following is a proof of concept from their publication for injecting shellcode (32 bit):&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Weaponizing-28-Year-Old-Macros/outflank32.jpg&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Breaking the above down (quoted from Outflank):&lt;/p&gt;
+
+&lt;p&gt;&lt;em&gt;REGISTER(module_name, procedure_name, type, alias, argument, macro_type, category)&lt;/em&gt;&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;&lt;em&gt;Module_name is the name of the DLL, for example “Kernel32” for c:\windows\system32\kernel32.dll.&lt;/em&gt;&lt;/li&gt;
+  &lt;li&gt;&lt;em&gt;Procedure_name is the name of the exported function in the DLL, for example “VirtualAlloc“.&lt;/em&gt;&lt;/li&gt;
+  &lt;li&gt;&lt;em&gt;Type is a string specifying the types of return value and arguments of the functions.&lt;/em&gt;&lt;/li&gt;
+  &lt;li&gt;&lt;em&gt;Alias is a custom name that you can give to the function, by which you can call it later.&lt;/em&gt;&lt;/li&gt;
+  &lt;li&gt;&lt;em&gt;Argument can be used to name the arguments to the function, but is optional (and left blank in our code).&lt;/em&gt;&lt;/li&gt;
+  &lt;li&gt;&lt;em&gt;Macro_type should be 1, which stands for function.&lt;/em&gt;&lt;/li&gt;
+  &lt;li&gt;&lt;em&gt;Category is a category number (used in ancient Excel functionality). We can specify an arbitrary category number between 1 and 14 for our purpose&lt;/em&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;By using these registers, system calls can be made directly from the macros. In this case, &lt;a href=&quot;https://docs.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-virtualalloc&quot;&gt;VirtualAlloc&lt;/a&gt;, &lt;a href=&quot;https://docs.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-writeprocessmemory&quot;&gt;WriteProcessMemory&lt;/a&gt;, and &lt;a href=&quot;https://docs.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createthread&quot;&gt;CreateThread&lt;/a&gt; which in combination, can write data to a specified memory address. This can be used to inject shellcode into memory. Once the full shellcode is written, a thread is created to execute the code in the allocated memory.&lt;/p&gt;
+
+&lt;h1 id=&quot;what-about-64-bit&quot;&gt;What About 64 Bit?&lt;/h1&gt;
+
+&lt;p&gt;Most modern operating systems have 64-bit architectures, and 64-bit versions of Microsoft Office. For offensive operations, it would be beneficial to be able to embed 64-bit shellcode. This is where the &lt;a href=&quot;https://www.cybereason.com/blog/excel4.0-macros-now-with-twice-the-bits&quot;&gt;research&lt;/a&gt; from Cyber Reason comes into play.&lt;/p&gt;
+
+&lt;p&gt;The initial issue is best described in the Cyber Reason research:&lt;/p&gt;
+
+&lt;p&gt;“&lt;em&gt;This macro functionality exists in 64-bit Excel, but if you try to implement a shellcode runner using the same approach, you will quickly encounter a problem. The pointer size for a 64-bit application is, unsurprisingly, 64-bits. The available data types remain the same, which means there is no native 8 byte integer type. Using one of the floating point types will use the XMM registers, which means the function will expect the arguments to be in rcx, rdx, r8, r9 and others, according to the x64 calling convention.&lt;/em&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;em&gt;However, the string data types, which are passed by reference, still seem to work. The macro system knows how to handle at least some 8 byte pointers. That doesn’t directly help, as we can’t precisely supply and receive 8-byte values.&lt;/em&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;em&gt;This problem disappears when our pointers are less than 0x0000001’00000000, as they will be representable using only 4 bytes. This is true for at least for the first 4 arguments of the function, which are passed through registers, not the stack.&lt;/em&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;em&gt;When entering the register, these arguments will be zero-extended, and 0x50000000 will simply become 0x00000000’50000000. The higher bits will be discarded when used as a 32-bit value.&lt;/em&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;em&gt;Because of this, we can use the lpAddress parameter of VirtualAlloc to specify that our memory must be allocated at a specific address in the 0x00000000-0xFFFFFFFF range, which we can supply via our available data-types. For the sake of the proof of concept, we chose 0x50000000 (1342177280) as our candidate address and attempted to run VirtualAlloc via 64-bit Excel.&lt;/em&gt;”&lt;/p&gt;
+
+&lt;p&gt;Using the above information, the first call to Kernel32 will use the 0x50000000 (1342177280) value as the address. Our 64-bit macro looks like the following:&lt;/p&gt;
+
+&lt;p&gt;&lt;em&gt;(The CALL function is used instead of REGISTER in this example)&lt;/em&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Weaponizing-28-Year-Old-Macros/call1.jpg&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;h1 id=&quot;creating-excel-shellcode&quot;&gt;Creating Excel Shellcode&lt;/h1&gt;
+
+&lt;p&gt;Now that we have a template to move data into memory, we need something to execute. Let’s create our own shellcode. For now, we will just create shellcode to spawn “calc.exe” for a proof of concept. We need to ensure that the shellcode does not contain null bytes, so we can encode it using a XOR encoder.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Weaponizing-28-Year-Old-Macros/msfvenom1.jpg&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Once our shellcode file has been created, there are tools such as &lt;a href=&quot;https://github.com/mdsecactivebreach/SharpShooter&quot;&gt;SharpShooter&lt;/a&gt; contain functionality to convert this raw shellcode to a format Excel can understand.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Weaponizing-28-Year-Old-Macros/sharpshooter1.jpg&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;The output of this tool is a .SLK (Symbolic Link) file which contains a macro very similar to the earlier 32-bit macro template and the associated shellcode we created. Since we are creating the 64-bit payload, we are only concerned with the shellcode for now.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Weaponizing-28-Year-Old-Macros/slk1.jpg&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;We can copy and paste this shellcode into our proof-of-concept.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Weaponizing-28-Year-Old-Macros/poc1.jpg&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;h1 id=&quot;breaking-down-the-macro&quot;&gt;Breaking Down the Macro&lt;/h1&gt;
+
+&lt;p&gt;Let’s break down the code and what this macro is doing.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Weaponizing-28-Year-Old-Macros/breakdown.jpg&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;h1 id=&quot;executing-shellcode&quot;&gt;Executing Shellcode&lt;/h1&gt;
+
+&lt;p&gt;The macro is now ready to execute. To test, we can right-click on the first cell and click “Run”. This will execute the macro commands until it hits the &lt;em&gt;HALT()&lt;/em&gt; command. The Excel document ultimately crashes, but the shellcode is executed and spawns the calculator.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Weaponizing-28-Year-Old-Macros/exec1.jpg&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;h1 id=&quot;mitigating-the-crash&quot;&gt;Mitigating the Crash&lt;/h1&gt;
+
+&lt;p&gt;While the current macro works great for running commands which do not require interaction, the crashing aspect is a problem for payloads containing shells, Metasploit sessions, cobalt strike beacons, etc. This crash results from a stack corruption in &lt;em&gt;CreateThread&lt;/em&gt; after overwriting our memory address. This makes the exploit unreliable and only execute successfully some of the time.&lt;/p&gt;
+
+&lt;p&gt;According to Cyber Reason’s research, this can be solved by “Queuing an APC (Asynchronous Procedure Call)” instead of using &lt;em&gt;CreateThread&lt;/em&gt;. According to Cyber Reason:&lt;/p&gt;
+
+&lt;p&gt;“&lt;em&gt;Queuing an APC (Asynchronous Procedure Call) to a thread will make the thread execute caller provide code in the context of that thread as soon as it enters an alertable state. The QueueUserAPC, used for this purpose, only needs three arguments and thus will not look for parameters on the stack. We use this function to queue an APC containing the address of our shellcode to the current thread. The current thread is the thread handling our CALL macro.&lt;/em&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;em&gt;We can use a function like NtTestAlert to flush and execute the current thread’s APC queue and target the correct thread to execute our shellcode.&lt;/em&gt;”&lt;/p&gt;
+
+&lt;p&gt;Going of off this statement, we can modify our macro code calling these functions instead of &lt;em&gt;CreateThread&lt;/em&gt;. With this addition, the document should not crash until the shellcode is finished executing. This means that if there is a Metasploit/Cobalt Strike session, it will not close until the session is exited.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Weaponizing-28-Year-Old-Macros/qapc.jpg&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;To fully demonstrate this functionality, we will create a Metasploit meterpreter payload. We will begin by creating meterpreter shellcode and converting it to Excel shellcode by using &lt;em&gt;MsfVenom&lt;/em&gt; and &lt;em&gt;SharpShooter&lt;/em&gt;, just as we did with the calc shellcode.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Weaponizing-28-Year-Old-Macros/shellcode64.jpg&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Once we have the shellcode, we will add it to our shellcode column in our Excel macro.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Weaponizing-28-Year-Old-Macros/poc2.jpg&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;When we run the macro, we are greeted with a meterpreter shell and the excel doc will “spin” until the session is closed. This may also seem like an issue, but the beacon receiver can be configured to spawn a new shell under a different process and kill the excel process when complete. (Not demonstrated in this paper).&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Weaponizing-28-Year-Old-Macros/exec2.jpg&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Weaponizing-28-Year-Old-Macros/exec3.jpg&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;As the shellcode is injected into memory, when viewed in Process Explorer, Excel has no child processes.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Weaponizing-28-Year-Old-Macros/procexplore.jpg&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;h1 id=&quot;bringing-it-all-together&quot;&gt;Bringing it All Together&lt;/h1&gt;
+
+&lt;p&gt;Now that we have a working shellcode injection macro, lets finish weaponizing it and upload to VirusTotal to see the detection. We will start by renaming the first cell to “&lt;em&gt;Auto_Open&lt;/em&gt;” and then hide the cell from the user.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Weaponizing-28-Year-Old-Macros/biat1.jpg&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Weaponizing-28-Year-Old-Macros/biat2.jpg&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Finally, lets upload to VirusTotal and check the detection rate.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Weaponizing-28-Year-Old-Macros/vt.jpg&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;We now have an Excel document that executes a Meterpreter payload that is undetected by all AV products on VirusTotal (At least at the time of this test).&lt;/p&gt;
+
+&lt;h1 id=&quot;tooling&quot;&gt;Tooling&lt;/h1&gt;
+
+&lt;p&gt;When researching this technique, there were a few tools like SharpShooter which I could use to generate the required shellcode, but none that did exactly what I wanted. As part of this project, I have created a simple python script that uses the same methods as SharpShooter to create the CHAR() shellcode, but outputs to a CSV format rather than an .SLK. It takes both x86 and x64 shellcode bin files as arguments.&lt;/p&gt;
+
+&lt;p&gt;Another issue I ran into was assuming most computers would be running the 64 bit version of Excel. Turns out that 32 bit is the preferred version for ARM-based processors and computers with less than 4GB of RAM (regardless of whether the OS was 64 bit) according to &lt;a href=&quot;https://support.office.com/en-us/article/choose-between-the-64-bit-or-32-bit-version-of-office-2dee7807-8f95-4d0c-b5fe-6c6f49b8d261&quot;&gt;Microsoft&lt;/a&gt;. Because of this, the script also has a check to see if Excel is running in a 32 or 64 bit process and executes the shellcode accordingly.&lt;/p&gt;
+
+&lt;p&gt;The script can be found on my GitHub &lt;a href=&quot;https://github.com/Synzack/Excel-4.0-Shellcode-Generator&quot;&gt;here&lt;/a&gt;.&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;Usage&lt;/strong&gt;&lt;/p&gt;
+
+&lt;p&gt;1) Generate your shellcode to bin files and ensure there are no null bytes&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Weaponizing-28-Year-Old-Macros/tools1.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;2) Run script with x86 and x64 bin files as arguments&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Weaponizing-28-Year-Old-Macros/tools2.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;3) Your output file should look like the following (you may need to zoom in):&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Weaponizing-28-Year-Old-Macros/output.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;4) Copy and paste all columns to an Excel 4 Macro enabled document (including the blank first column). The macro begins at the &lt;em&gt;WORKBOOK.ACTIVATE&lt;/em&gt; in column 4. Make this your &lt;em&gt;Auto_Open&lt;/em&gt; cell and change the text in &lt;em&gt;WORKBOOK.ACTIVATE&lt;/em&gt; to the name of your macro tab. Save as a macro enabled excel file (xls or xlsm).&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Weaponizing-28-Year-Old-Macros/output2.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;</content><author><name>Zach Stein</name></author><summary type="html">Overview</summary></entry></feed>

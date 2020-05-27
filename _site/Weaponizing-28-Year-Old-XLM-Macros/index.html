@@ -1,0 +1,631 @@
+<!doctype html>
+<!--
+  Minimal Mistakes Jekyll Theme 4.19.2 by Michael Rose
+  Copyright 2013-2019 Michael Rose - mademistakes.com | @mmistakes
+  Free for personal and commercial use under the MIT license
+  https://github.com/mmistakes/minimal-mistakes/blob/master/LICENSE
+-->
+<html lang="en" class="no-js">
+  <head>
+    <meta charset="utf-8">
+
+<!-- begin _includes/seo.html --><title>Weaponizing 28 Year Old Xlm Macros - Red Team Blog</title>
+<meta name="description" content="Overview  ">
+
+
+  <meta name="author" content="Zach Stein">
+
+
+<meta property="og:type" content="article">
+<meta property="og:locale" content="en_US">
+<meta property="og:site_name" content="Red Team Blog">
+<meta property="og:title" content="Weaponizing 28 Year Old Xlm Macros">
+<meta property="og:url" content="http://localhost:4000/Weaponizing-28-Year-Old-XLM-Macros/">
+
+
+  <meta property="og:description" content="Overview  ">
+
+
+
+
+
+
+
+  <meta property="article:published_time" content="2020-05-25T00:00:00-04:00">
+
+
+
+
+
+  
+
+  
+
+
+<link rel="canonical" href="http://localhost:4000/Weaponizing-28-Year-Old-XLM-Macros/">
+
+
+
+
+<script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    
+      "@type": "Person",
+      "name": "Zach Stein",
+      "url": "http://localhost:4000/"
+    
+  }
+</script>
+
+
+
+
+
+
+<!-- end _includes/seo.html -->
+
+
+<link href="/feed.xml" type="application/atom+xml" rel="alternate" title="Red Team Blog Feed">
+
+<!-- https://t.co/dKP3o1e -->
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<script>
+  document.documentElement.className = document.documentElement.className.replace(/\bno-js\b/g, '') + ' js ';
+</script>
+
+<!-- For all browsers -->
+<link rel="stylesheet" href="/assets/css/main.css">
+
+<!--[if IE]>
+  <style>
+    /* old IE unsupported flexbox fixes */
+    .greedy-nav .site-title {
+      padding-right: 3em;
+    }
+    .greedy-nav button {
+      position: absolute;
+      top: 0;
+      right: 0;
+      height: 100%;
+    }
+  </style>
+<![endif]-->
+
+
+
+    <!-- start custom head snippets -->
+
+<!-- insert favicons. use https://realfavicongenerator.net/ -->
+
+<!-- end custom head snippets -->
+
+  </head>
+
+  <body class="layout--single">
+    <nav class="skip-links">
+  <h2 class="screen-reader-text">Skip links</h2>
+  <ul>
+    <li><a href="#site-nav" class="screen-reader-shortcut">Skip to primary navigation</a></li>
+    <li><a href="#main" class="screen-reader-shortcut">Skip to content</a></li>
+    <li><a href="#footer" class="screen-reader-shortcut">Skip to footer</a></li>
+  </ul>
+</nav>
+
+    <!--[if lt IE 9]>
+<div class="notice--danger align-center" style="margin: 0;">You are using an <strong>outdated</strong> browser. Please <a href="https://browsehappy.com/">upgrade your browser</a> to improve your experience.</div>
+<![endif]-->
+
+    
+
+<div class="masthead">
+  <div class="masthead__inner-wrap">
+    <div class="masthead__menu">
+      <nav id="site-nav" class="greedy-nav">
+        
+        <a class="site-title" href="/">
+          Red Team Blog
+          
+        </a>
+        <ul class="visible-links"><li class="masthead__menu-item">
+              <a href="/">Home</a>
+            </li><li class="masthead__menu-item">
+              <a href="/posts">Posts</a>
+            </li><li class="masthead__menu-item">
+              <a href="/about">About</a>
+            </li></ul>
+        
+        <button class="greedy-nav__toggle hidden" type="button">
+          <span class="visually-hidden">Toggle menu</span>
+          <div class="navicon"></div>
+        </button>
+        <ul class="hidden-links hidden"></ul>
+      </nav>
+    </div>
+  </div>
+</div>
+
+
+    <div class="initial-content">
+      
+
+
+
+<div id="main" role="main">
+  
+  <div class="sidebar sticky">
+  
+
+
+<div itemscope itemtype="https://schema.org/Person">
+
+  
+    <div class="author__avatar">
+      
+        <img src="/images/me.jpg" alt="Zach Stein" itemprop="image">
+      
+    </div>
+  
+
+  <div class="author__content">
+    
+      <h3 class="author__name" itemprop="name">Zach Stein</h3>
+    
+    
+      <div class="author__bio" itemprop="description">
+        <p>Red Team @ ReliaQuest</p>
+
+      </div>
+    
+  </div>
+
+  <div class="author__urls-wrapper">
+    <button class="btn btn--inverse">Follow</button>
+    <ul class="author__urls social-icons">
+      
+        <li itemprop="homeLocation" itemscope itemtype="https://schema.org/Place">
+          <i class="fas fa-fw fa-map-marker-alt" aria-hidden="true"></i> <span itemprop="name">Tampa, FL</span>
+        </li>
+      
+
+      
+        
+          
+            <li><a href="mailto:zachinfosec@gmail.com" rel="nofollow noopener noreferrer"><i class="fas fa-fw fa-envelope-square" aria-hidden="true"></i><span class="label">Email</span></a></li>
+          
+        
+          
+        
+          
+            <li><a href="https://twitter.com/synzack21" rel="nofollow noopener noreferrer"><i class="fab fa-fw fa-twitter-square" aria-hidden="true"></i><span class="label">Twitter</span></a></li>
+          
+        
+          
+        
+          
+            <li><a href="https://github.com/Synzack" rel="nofollow noopener noreferrer"><i class="fab fa-fw fa-github" aria-hidden="true"></i><span class="label">GitHub</span></a></li>
+          
+        
+          
+        
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      <!--
+  <li>
+    <a href="http://link-to-whatever-social-network.com/user/" itemprop="sameAs" rel="nofollow noopener noreferrer">
+      <i class="fas fa-fw" aria-hidden="true"></i> Custom Social Profile Link
+    </a>
+  </li>
+-->
+    </ul>
+  </div>
+</div>
+
+  
+  </div>
+
+
+
+  <article class="page" itemscope itemtype="https://schema.org/CreativeWork">
+    <meta itemprop="headline" content="Weaponizing 28 Year Old Xlm Macros">
+    <meta itemprop="description" content="Overview">
+    <meta itemprop="datePublished" content="2020-05-25T00:00:00-04:00">
+    
+
+    <div class="page__inner-wrap">
+      
+        <header>
+          <h1 id="page-title" class="page__title" itemprop="headline">Weaponizing 28 Year Old Xlm Macros
+</h1>
+          
+            <p class="page__meta"><i class="far fa-clock" aria-hidden="true"></i> 
+
+
+
+
+  9 minute read
+
+</p>
+          
+        </header>
+      
+
+      <section class="page__content" itemprop="text">
+        
+        <h1 id="overview">Overview</h1>
+
+<p>Excel 4.0 macros (XLM macros) are a feature of Microsoft Excel that date back to 1992. These macros can be embedded into an Excel sheet and do not use VBA. This is significant as many modern exploit campaigns utilize <a href="https://docs.microsoft.com/en-us/office/vba/api/overview/">VBA</a> (Visual Basic for Applications) macros, which many security appliances have signatures for.</p>
+
+<p>While these macros have been around for many years, research into weaponizing them is relatively new. This paper is an extension of research done by <a href="https://outflank.nl/blog/2018/10/06/old-school-evil-excel-4-0-macros-xlm/">Outflank</a> and <a href="https://www.cybereason.com/blog/excel4.0-macros-now-with-twice-the-bits">Cyber Reason</a>.</p>
+
+<h1 id="offensive-advantages">Offensive Advantages</h1>
+
+<p>From an offensive perspective, Excel 4.0 macros provide the following advantages:</p>
+
+<ul>
+  <li>4.0 macros are stored differently than VBA macros, evading many AV signatures</li>
+  <li>Utilizing 4.0 macros has the potential to bypass <a href="https://docs.microsoft.com/en-us/windows/win32/amsi/antimalware-scan-interface-portal">AMSI</a> (Antimalware Scan Interface)</li>
+  <li>4.0 macros be easily hidden within excel sheets</li>
+</ul>
+
+<h2 id="vba-vs-xlm-storage">VBA vs XLM Storage</h2>
+
+<p>The following screenshot from Outflank demonstrates how VBA (left) and XLM (right) are stored in Excel containers in a 97-2003 format (.xls). VBA macros are stored in <a href="https://docs.microsoft.com/en-us/cpp/mfc/ole-background?view=vs-2019">OLE</a> (Object Linking and Embedding) streams under the containers, while XLM macros are embedded within the Workbook OLE stream. This adds an extra layer of stealth when trying to detect XLM macros with AV and other solutions.</p>
+
+<p><img src="/images/Weaponizing-28-Year-Old-Macros/OLE-Streams.jpg" alt="image-center" class="align-center" /></p>
+
+<h1 id="example-of-a-40-macro">Example of a 4.0 Macro</h1>
+
+<p>In an excel sheet, the 4.0 macro option can be found by simply right-clicking on the current sheet and selecting <strong><em>Insert -&gt; MS Excel 4.0 Macro</em></strong>.</p>
+
+<p><img src="/images/Weaponizing-28-Year-Old-Macros/create-step1.jpg" alt="image-center" class="align-center" /></p>
+
+<p><img src="/images/Weaponizing-28-Year-Old-Macros/create-step2.jpg" alt="image-center" class="align-center" /></p>
+
+<p><img src="/images/Weaponizing-28-Year-Old-Macros/create-step3.jpg" alt="image-center" class="align-center" /></p>
+
+<p>The macro functions are called directly in the sheet cells and can perform a wide range of commands. For example, we can run EXEC to execute system commands and ALERT to
+create pop-up messages.</p>
+
+<p><em>*A full list of Excel 4.0 Macro functions can be found at the following <a href="https://d13ot9o61jdzpp.cloudfront.net/files/Excel%204.0%20Macro%20Functions%20Reference.pdf">link</a></em>.</p>
+
+<p><img src="/images/Weaponizing-28-Year-Old-Macros/run1.jpg" alt="image-center" class="align-center" /></p>
+
+<p><img src="/images/Weaponizing-28-Year-Old-Macros/run2.jpg" alt="image-center" class="align-center" /></p>
+
+<p><br /></p>
+<h1 id="enhancing-execution-and-stealth">Enhancing Execution and Stealth</h1>
+
+<p><strong>Auto_Open</strong></p>
+
+<p>Just like the VBA counterpart, these macros can be set to automatically run when the document
+is opened (assuming macros are enabled in the settings or the user enables them).
+To do this, the starting cell just needs to be renamed to “<em>Auto_Open</em>”.</p>
+
+<p><img src="/images/Weaponizing-28-Year-Old-Macros/auto-open1.jpg" alt="image-center" class="align-center" /></p>
+
+<p><img src="/images/Weaponizing-28-Year-Old-Macros/auto-open2.jpg" alt="image-center" class="align-center" /></p>
+
+<p><strong>Hiding the Macro</strong></p>
+
+<p>As the macro is technically a sheet within excel, it contains many of the same functionality. For example, it can be hidden just like a regular cell.</p>
+
+<p><img src="/images/Weaponizing-28-Year-Old-Macros/hide.jpg" alt="image-center" class="align-center" /></p>
+
+<p><strong>Saving as an XLSM/XLS file</strong></p>
+
+<p>While 4.0 macros are not the same as VBA macros, the document still needs to be saved as an
+XLSM or XLS file to be a macro enabled document. If the excel settings are set to warn the user
+before enabling macros, this banner will still display with a 4.0 macro document.</p>
+
+<p><img src="/images/Weaponizing-28-Year-Old-Macros/enable1.jpg" alt="image-center" class="align-center" /></p>
+
+<p><img src="/images/Weaponizing-28-Year-Old-Macros/enable2.jpg" alt="image-center" class="align-center" /></p>
+
+<p>Now, we have a fully functioning macro that will open on start, be essentially invisible to the end
+user, and will not show in the document macro ribbon. This will likely fool the unsuspecting
+victim, even if they are aware of VBA macro risks.</p>
+
+<p><img src="/images/Weaponizing-28-Year-Old-Macros/locations.jpg" alt="image-center" class="align-center" /></p>
+
+<h1 id="weaponizing-the-macro">Weaponizing the Macro</h1>
+
+<p>While command execution can result in compromise a machine, what if we were able to further
+weaponize these macros?</p>
+
+<p>The researchers at Outflank discovered that by utilizing the <em>REGISTER</em> and <em>CALL</em> functions of
+these macros, they can call the Win32 API and can inject shellcode into the running process.</p>
+
+<p>The following is a proof of concept from their publication for injecting shellcode (32 bit):</p>
+
+<p><img src="/images/Weaponizing-28-Year-Old-Macros/outflank32.jpg" alt="image-center" class="align-center" /></p>
+
+<p>Breaking the above down (quoted from Outflank):</p>
+
+<p><em>REGISTER(module_name, procedure_name, type, alias, argument, macro_type, category)</em></p>
+
+<ul>
+  <li><em>Module_name is the name of the DLL, for example “Kernel32” for c:\windows\system32\kernel32.dll.</em></li>
+  <li><em>Procedure_name is the name of the exported function in the DLL, for example “VirtualAlloc“.</em></li>
+  <li><em>Type is a string specifying the types of return value and arguments of the functions.</em></li>
+  <li><em>Alias is a custom name that you can give to the function, by which you can call it later.</em></li>
+  <li><em>Argument can be used to name the arguments to the function, but is optional (and left blank in our code).</em></li>
+  <li><em>Macro_type should be 1, which stands for function.</em></li>
+  <li><em>Category is a category number (used in ancient Excel functionality). We can specify an arbitrary category number between 1 and 14 for our purpose</em></li>
+</ul>
+
+<p>By using these registers, system calls can be made directly from the macros. In this case, <a href="https://docs.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-virtualalloc">VirtualAlloc</a>, <a href="https://docs.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-writeprocessmemory">WriteProcessMemory</a>, and <a href="https://docs.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createthread">CreateThread</a> which in combination, can write data to a specified memory address. This can be used to inject shellcode into memory. Once the full shellcode is written, a thread is created to execute the code in the allocated memory.</p>
+
+<h1 id="what-about-64-bit">What About 64 Bit?</h1>
+
+<p>Most modern operating systems have 64-bit architectures, and 64-bit versions of Microsoft Office. For offensive operations, it would be beneficial to be able to embed 64-bit shellcode. This is where the <a href="https://www.cybereason.com/blog/excel4.0-macros-now-with-twice-the-bits">research</a> from Cyber Reason comes into play.</p>
+
+<p>The initial issue is best described in the Cyber Reason research:</p>
+
+<p>“<em>This macro functionality exists in 64-bit Excel, but if you try to implement a shellcode runner using the same approach, you will quickly encounter a problem. The pointer size for a 64-bit application is, unsurprisingly, 64-bits. The available data types remain the same, which means there is no native 8 byte integer type. Using one of the floating point types will use the XMM registers, which means the function will expect the arguments to be in rcx, rdx, r8, r9 and others, according to the x64 calling convention.</em></p>
+
+<p><em>However, the string data types, which are passed by reference, still seem to work. The macro system knows how to handle at least some 8 byte pointers. That doesn’t directly help, as we can’t precisely supply and receive 8-byte values.</em></p>
+
+<p><em>This problem disappears when our pointers are less than 0x0000001’00000000, as they will be representable using only 4 bytes. This is true for at least for the first 4 arguments of the function, which are passed through registers, not the stack.</em></p>
+
+<p><em>When entering the register, these arguments will be zero-extended, and 0x50000000 will simply become 0x00000000’50000000. The higher bits will be discarded when used as a 32-bit value.</em></p>
+
+<p><em>Because of this, we can use the lpAddress parameter of VirtualAlloc to specify that our memory must be allocated at a specific address in the 0x00000000-0xFFFFFFFF range, which we can supply via our available data-types. For the sake of the proof of concept, we chose 0x50000000 (1342177280) as our candidate address and attempted to run VirtualAlloc via 64-bit Excel.</em>”</p>
+
+<p>Using the above information, the first call to Kernel32 will use the 0x50000000 (1342177280) value as the address. Our 64-bit macro looks like the following:</p>
+
+<p><em>(The CALL function is used instead of REGISTER in this example)</em></p>
+
+<p><img src="/images/Weaponizing-28-Year-Old-Macros/call1.jpg" alt="image-center" class="align-center" /></p>
+
+<h1 id="creating-excel-shellcode">Creating Excel Shellcode</h1>
+
+<p>Now that we have a template to move data into memory, we need something to execute. Let’s create our own shellcode. For now, we will just create shellcode to spawn “calc.exe” for a proof of concept. We need to ensure that the shellcode does not contain null bytes, so we can encode it using a XOR encoder.</p>
+
+<p><img src="/images/Weaponizing-28-Year-Old-Macros/msfvenom1.jpg" alt="image-center" class="align-center" /></p>
+
+<p>Once our shellcode file has been created, there are tools such as <a href="https://github.com/mdsecactivebreach/SharpShooter">SharpShooter</a> contain functionality to convert this raw shellcode to a format Excel can understand.</p>
+
+<p><img src="/images/Weaponizing-28-Year-Old-Macros/sharpshooter1.jpg" alt="image-center" class="align-center" /></p>
+
+<p>The output of this tool is a .SLK (Symbolic Link) file which contains a macro very similar to the earlier 32-bit macro template and the associated shellcode we created. Since we are creating the 64-bit payload, we are only concerned with the shellcode for now.</p>
+
+<p><img src="/images/Weaponizing-28-Year-Old-Macros/slk1.jpg" alt="image-center" class="align-center" /></p>
+
+<p>We can copy and paste this shellcode into our proof-of-concept.</p>
+
+<p><img src="/images/Weaponizing-28-Year-Old-Macros/poc1.jpg" alt="image-center" class="align-center" /></p>
+
+<h1 id="breaking-down-the-macro">Breaking Down the Macro</h1>
+
+<p>Let’s break down the code and what this macro is doing.</p>
+
+<p><img src="/images/Weaponizing-28-Year-Old-Macros/breakdown.jpg" alt="image-center" class="align-center" /></p>
+
+<h1 id="executing-shellcode">Executing Shellcode</h1>
+
+<p>The macro is now ready to execute. To test, we can right-click on the first cell and click “Run”. This will execute the macro commands until it hits the <em>HALT()</em> command. The Excel document ultimately crashes, but the shellcode is executed and spawns the calculator.</p>
+
+<p><img src="/images/Weaponizing-28-Year-Old-Macros/exec1.jpg" alt="image-center" class="align-center" /></p>
+
+<h1 id="mitigating-the-crash">Mitigating the Crash</h1>
+
+<p>While the current macro works great for running commands which do not require interaction, the crashing aspect is a problem for payloads containing shells, Metasploit sessions, cobalt strike beacons, etc. This crash results from a stack corruption in <em>CreateThread</em> after overwriting our memory address. This makes the exploit unreliable and only execute successfully some of the time.</p>
+
+<p>According to Cyber Reason’s research, this can be solved by “Queuing an APC (Asynchronous Procedure Call)” instead of using <em>CreateThread</em>. According to Cyber Reason:</p>
+
+<p>“<em>Queuing an APC (Asynchronous Procedure Call) to a thread will make the thread execute caller provide code in the context of that thread as soon as it enters an alertable state. The QueueUserAPC, used for this purpose, only needs three arguments and thus will not look for parameters on the stack. We use this function to queue an APC containing the address of our shellcode to the current thread. The current thread is the thread handling our CALL macro.</em></p>
+
+<p><em>We can use a function like NtTestAlert to flush and execute the current thread’s APC queue and target the correct thread to execute our shellcode.</em>”</p>
+
+<p>Going of off this statement, we can modify our macro code calling these functions instead of <em>CreateThread</em>. With this addition, the document should not crash until the shellcode is finished executing. This means that if there is a Metasploit/Cobalt Strike session, it will not close until the session is exited.</p>
+
+<p><img src="/images/Weaponizing-28-Year-Old-Macros/qapc.jpg" alt="image-center" class="align-center" /></p>
+
+<p>To fully demonstrate this functionality, we will create a Metasploit meterpreter payload. We will begin by creating meterpreter shellcode and converting it to Excel shellcode by using <em>MsfVenom</em> and <em>SharpShooter</em>, just as we did with the calc shellcode.</p>
+
+<p><img src="/images/Weaponizing-28-Year-Old-Macros/shellcode64.jpg" alt="image-center" class="align-center" /></p>
+
+<p>Once we have the shellcode, we will add it to our shellcode column in our Excel macro.</p>
+
+<p><img src="/images/Weaponizing-28-Year-Old-Macros/poc2.jpg" alt="image-center" class="align-center" /></p>
+
+<p>When we run the macro, we are greeted with a meterpreter shell and the excel doc will “spin” until the session is closed. This may also seem like an issue, but the beacon receiver can be configured to spawn a new shell under a different process and kill the excel process when complete. (Not demonstrated in this paper).</p>
+
+<p><img src="/images/Weaponizing-28-Year-Old-Macros/exec2.jpg" alt="image-center" class="align-center" /></p>
+
+<p><img src="/images/Weaponizing-28-Year-Old-Macros/exec3.jpg" alt="image-center" class="align-center" /></p>
+
+<p>As the shellcode is injected into memory, when viewed in Process Explorer, Excel has no child processes.</p>
+
+<p><img src="/images/Weaponizing-28-Year-Old-Macros/procexplore.jpg" alt="image-center" class="align-center" /></p>
+
+<h1 id="bringing-it-all-together">Bringing it All Together</h1>
+
+<p>Now that we have a working shellcode injection macro, lets finish weaponizing it and upload to VirusTotal to see the detection. We will start by renaming the first cell to “<em>Auto_Open</em>” and then hide the cell from the user.</p>
+
+<p><img src="/images/Weaponizing-28-Year-Old-Macros/biat1.jpg" alt="image-center" class="align-center" /></p>
+
+<p><img src="/images/Weaponizing-28-Year-Old-Macros/biat2.jpg" alt="image-center" class="align-center" /></p>
+
+<p>Finally, lets upload to VirusTotal and check the detection rate.</p>
+
+<p><img src="/images/Weaponizing-28-Year-Old-Macros/vt.jpg" alt="image-center" class="align-center" /></p>
+
+<p>We now have an Excel document that executes a Meterpreter payload that is undetected by all AV products on VirusTotal (At least at the time of this test).</p>
+
+<h1 id="tooling">Tooling</h1>
+
+<p>When researching this technique, there were a few tools like SharpShooter which I could use to generate the required shellcode, but none that did exactly what I wanted. As part of this project, I have created a simple python script that uses the same methods as SharpShooter to create the CHAR() shellcode, but outputs to a CSV format rather than an .SLK. It takes both x86 and x64 shellcode bin files as arguments.</p>
+
+<p>Another issue I ran into was assuming most computers would be running the 64 bit version of Excel. Turns out that 32 bit is the preferred version for ARM-based processors and computers with less than 4GB of RAM (regardless of whether the OS was 64 bit) according to <a href="https://support.office.com/en-us/article/choose-between-the-64-bit-or-32-bit-version-of-office-2dee7807-8f95-4d0c-b5fe-6c6f49b8d261">Microsoft</a>. Because of this, the script also has a check to see if Excel is running in a 32 or 64 bit process and executes the shellcode accordingly.</p>
+
+<p>The script can be found on my GitHub <a href="https://github.com/Synzack/Excel-4.0-Shellcode-Generator">here</a>.</p>
+
+<p><strong>Usage</strong></p>
+
+<p>1) Generate your shellcode to bin files and ensure there are no null bytes</p>
+
+<p><img src="/images/Weaponizing-28-Year-Old-Macros/tools1.png" alt="image-center" class="align-center" /></p>
+
+<p>2) Run script with x86 and x64 bin files as arguments</p>
+
+<p><img src="/images/Weaponizing-28-Year-Old-Macros/tools2.png" alt="image-center" class="align-center" /></p>
+
+<p>3) Your output file should look like the following (you may need to zoom in):</p>
+
+<p><img src="/images/Weaponizing-28-Year-Old-Macros/output.png" alt="image-center" class="align-center" /></p>
+
+<p>4) Copy and paste all columns to an Excel 4 Macro enabled document (including the blank first column). The macro begins at the <em>WORKBOOK.ACTIVATE</em> in column 4. Make this your <em>Auto_Open</em> cell and change the text in <em>WORKBOOK.ACTIVATE</em> to the name of your macro tab. Save as a macro enabled excel file (xls or xlsm).</p>
+
+<p><img src="/images/Weaponizing-28-Year-Old-Macros/output2.png" alt="image-center" class="align-center" /></p>
+
+        
+      </section>
+
+      <footer class="page__meta">
+        
+        
+
+
+        
+          <p class="page__date"><strong><i class="fas fa-fw fa-calendar-alt" aria-hidden="true"></i> Updated:</strong> <time datetime="2020-05-25T00:00:00-04:00">May 25, 2020</time></p>
+        
+      </footer>
+
+      <section class="page__share">
+  
+    <h4 class="page__share-title">Share on</h4>
+  
+
+  <a href="https://twitter.com/intent/tweet?text=Weaponizing+28+Year+Old+Xlm+Macros%20http%3A%2F%2Flocalhost%3A4000%2FWeaponizing-28-Year-Old-XLM-Macros%2F" class="btn btn--twitter" onclick="window.open(this.href, 'window', 'left=20,top=20,width=500,height=500,toolbar=1,resizable=0'); return false;" title="Share on Twitter"><i class="fab fa-fw fa-twitter" aria-hidden="true"></i><span> Twitter</span></a>
+
+  <a href="https://www.facebook.com/sharer/sharer.php?u=http%3A%2F%2Flocalhost%3A4000%2FWeaponizing-28-Year-Old-XLM-Macros%2F" class="btn btn--facebook" onclick="window.open(this.href, 'window', 'left=20,top=20,width=500,height=500,toolbar=1,resizable=0'); return false;" title="Share on Facebook"><i class="fab fa-fw fa-facebook" aria-hidden="true"></i><span> Facebook</span></a>
+
+  <a href="https://www.linkedin.com/shareArticle?mini=true&url=http%3A%2F%2Flocalhost%3A4000%2FWeaponizing-28-Year-Old-XLM-Macros%2F" class="btn btn--linkedin" onclick="window.open(this.href, 'window', 'left=20,top=20,width=500,height=500,toolbar=1,resizable=0'); return false;" title="Share on LinkedIn"><i class="fab fa-fw fa-linkedin" aria-hidden="true"></i><span> LinkedIn</span></a>
+</section>
+
+
+      
+    </div>
+
+    
+  </article>
+
+  
+  
+    <div class="page__related">
+      <h4 class="page__related-title">You may also enjoy</h4>
+      <div class="grid__wrapper">
+        
+          
+            
+      </div>
+    </div>
+  
+</div>
+
+    </div>
+
+    
+
+    <div id="footer" class="page__footer">
+      <footer>
+        <!-- start custom footer snippets -->
+
+<!-- end custom footer snippets -->
+        <div class="page__footer-follow">
+  <ul class="social-icons">
+    
+      <li><strong>Follow:</strong></li>
+    
+
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+
+    <li><a href="/feed.xml"><i class="fas fa-fw fa-rss-square" aria-hidden="true"></i> Feed</a></li>
+  </ul>
+</div>
+
+<div class="page__footer-copyright">&copy; 2020 Zach Stein. Powered by <a href="https://jekyllrb.com" rel="nofollow">Jekyll</a> &amp; <a href="https://mademistakes.com/work/minimal-mistakes-jekyll-theme/" rel="nofollow">Minimal Mistakes</a>.</div>
+
+      </footer>
+    </div>
+
+    
+  <script src="/assets/js/main.min.js"></script>
+  <script src="https://kit.fontawesome.com/4eee35f757.js"></script>
+
+
+
+
+
+
+
+
+
+
+  </body>
+</html>
