@@ -1,0 +1,766 @@
+<!doctype html>
+<!--
+  Minimal Mistakes Jekyll Theme 4.19.2 by Michael Rose
+  Copyright 2013-2019 Michael Rose - mademistakes.com | @mmistakes
+  Free for personal and commercial use under the MIT license
+  https://github.com/mmistakes/minimal-mistakes/blob/master/LICENSE
+-->
+<html lang="en" class="no-js">
+  <head>
+    <meta charset="utf-8">
+
+<!-- begin _includes/seo.html --><title>Oauth Token Stealing - Red Team Blog</title>
+<meta name="description" content="Preface  ">
+
+
+  <meta name="author" content="Zach Stein">
+
+
+<meta property="og:type" content="article">
+<meta property="og:locale" content="en_US">
+<meta property="og:site_name" content="Red Team Blog">
+<meta property="og:title" content="Oauth Token Stealing">
+<meta property="og:url" content="http://localhost:4000/OAuth-Token-Stealing/">
+
+
+  <meta property="og:description" content="Preface  ">
+
+
+
+
+
+
+
+  <meta property="article:published_time" content="2020-05-29T00:00:00-04:00">
+
+
+
+
+
+  
+
+  
+
+
+<link rel="canonical" href="http://localhost:4000/OAuth-Token-Stealing/">
+
+
+
+
+<script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    
+      "@type": "Person",
+      "name": "Zach Stein",
+      "url": "http://localhost:4000/"
+    
+  }
+</script>
+
+
+
+
+
+
+<!-- end _includes/seo.html -->
+
+
+<link href="/feed.xml" type="application/atom+xml" rel="alternate" title="Red Team Blog Feed">
+
+<!-- https://t.co/dKP3o1e -->
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<script>
+  document.documentElement.className = document.documentElement.className.replace(/\bno-js\b/g, '') + ' js ';
+</script>
+
+<!-- For all browsers -->
+<link rel="stylesheet" href="/assets/css/main.css">
+
+<!--[if IE]>
+  <style>
+    /* old IE unsupported flexbox fixes */
+    .greedy-nav .site-title {
+      padding-right: 3em;
+    }
+    .greedy-nav button {
+      position: absolute;
+      top: 0;
+      right: 0;
+      height: 100%;
+    }
+  </style>
+<![endif]-->
+
+
+
+    <!-- start custom head snippets -->
+
+<!-- insert favicons. use https://realfavicongenerator.net/ -->
+
+<!-- end custom head snippets -->
+
+  </head>
+
+  <body class="layout--single">
+    <nav class="skip-links">
+  <h2 class="screen-reader-text">Skip links</h2>
+  <ul>
+    <li><a href="#site-nav" class="screen-reader-shortcut">Skip to primary navigation</a></li>
+    <li><a href="#main" class="screen-reader-shortcut">Skip to content</a></li>
+    <li><a href="#footer" class="screen-reader-shortcut">Skip to footer</a></li>
+  </ul>
+</nav>
+
+    <!--[if lt IE 9]>
+<div class="notice--danger align-center" style="margin: 0;">You are using an <strong>outdated</strong> browser. Please <a href="https://browsehappy.com/">upgrade your browser</a> to improve your experience.</div>
+<![endif]-->
+
+    
+
+<div class="masthead">
+  <div class="masthead__inner-wrap">
+    <div class="masthead__menu">
+      <nav id="site-nav" class="greedy-nav">
+        
+        <a class="site-title" href="/">
+          Red Team Blog
+          
+        </a>
+        <ul class="visible-links"><li class="masthead__menu-item">
+              <a href="/">Home</a>
+            </li><li class="masthead__menu-item">
+              <a href="/posts">Posts</a>
+            </li><li class="masthead__menu-item">
+              <a href="/about">About</a>
+            </li></ul>
+        
+        <button class="greedy-nav__toggle hidden" type="button">
+          <span class="visually-hidden">Toggle menu</span>
+          <div class="navicon"></div>
+        </button>
+        <ul class="hidden-links hidden"></ul>
+      </nav>
+    </div>
+  </div>
+</div>
+
+
+    <div class="initial-content">
+      
+
+
+
+<div id="main" role="main">
+  
+  <div class="sidebar sticky">
+  
+
+
+<div itemscope itemtype="https://schema.org/Person">
+
+  
+    <div class="author__avatar">
+      
+        <img src="/images/me.jpg" alt="Zach Stein" itemprop="image">
+      
+    </div>
+  
+
+  <div class="author__content">
+    
+      <h3 class="author__name" itemprop="name">Zach Stein</h3>
+    
+    
+      <div class="author__bio" itemprop="description">
+        <p>Red Team @ ReliaQuest</p>
+
+      </div>
+    
+  </div>
+
+  <div class="author__urls-wrapper">
+    <button class="btn btn--inverse">Follow</button>
+    <ul class="author__urls social-icons">
+      
+        <li itemprop="homeLocation" itemscope itemtype="https://schema.org/Place">
+          <i class="fas fa-fw fa-map-marker-alt" aria-hidden="true"></i> <span itemprop="name">Tampa, FL</span>
+        </li>
+      
+
+      
+        
+          
+            <li><a href="mailto:zachinfosec@gmail.com" rel="nofollow noopener noreferrer"><i class="fas fa-fw fa-envelope-square" aria-hidden="true"></i><span class="label">Email</span></a></li>
+          
+        
+          
+        
+          
+            <li><a href="https://twitter.com/synzack21" rel="nofollow noopener noreferrer"><i class="fab fa-fw fa-twitter-square" aria-hidden="true"></i><span class="label">Twitter</span></a></li>
+          
+        
+          
+        
+          
+            <li><a href="https://github.com/Synzack" rel="nofollow noopener noreferrer"><i class="fab fa-fw fa-github" aria-hidden="true"></i><span class="label">GitHub</span></a></li>
+          
+        
+          
+        
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      <!--
+  <li>
+    <a href="http://link-to-whatever-social-network.com/user/" itemprop="sameAs" rel="nofollow noopener noreferrer">
+      <i class="fas fa-fw" aria-hidden="true"></i> Custom Social Profile Link
+    </a>
+  </li>
+-->
+    </ul>
+  </div>
+</div>
+
+  
+  </div>
+
+
+
+  <article class="page" itemscope itemtype="https://schema.org/CreativeWork">
+    <meta itemprop="headline" content="Oauth Token Stealing">
+    <meta itemprop="description" content="Preface">
+    <meta itemprop="datePublished" content="2020-05-29T00:00:00-04:00">
+    
+
+    <div class="page__inner-wrap">
+      
+        <header>
+          <h1 id="page-title" class="page__title" itemprop="headline">Oauth Token Stealing
+</h1>
+          
+            <p class="page__meta"><i class="far fa-clock" aria-hidden="true"></i> 
+
+
+
+
+  12 minute read
+
+</p>
+          
+        </header>
+      
+
+      <section class="page__content" itemprop="text">
+        
+        <h1 id="preface">Preface</h1>
+
+<p>The techniques presented in this paper are not necessarily new and were not initially discovered by myself. There is notable research that was done by <a href="https://www.fireeye.com/blog/threat-research/2018/05/shining-a-light-on-oauth-abuse-with-pwnauth.html">FireEye</a> and <a href="https://www.mdsec.co.uk/2019/07/introducing-the-office-365-attack-toolkit/">MDSec</a> prior to this publication that sparked this report. The goal of this post is to build on their research, give a background of the techniques used, and present new tools for security teams to use as testing frameworks in the future.</p>
+
+<p>In addition, this paper only covers OAuth abuse from the perspective of Microsoft accounts. This technique can be implemented on any service using similar OAuth protocols or permissions. Whether it be mobile apps, social media, personal email, or professional accounts, be sure to always review the permissions requested and the request source when granting third party access.</p>
+
+<h1 id="oauth">OAuth</h1>
+
+<h2 id="what-is-oauth">What is OAuth?</h2>
+
+<p>OAuth is an open standard authorization protocol/framework that make it possible for applications, servers, and other unrelated services to have a way to have secure authenticated access. The protocol is designed to be able to do this without sharing any logon credentials (such as the user’s actual password). If you would like to learn more how the protocol works, check out this <a href="https://www.csoonline.com/article/3216404/what-is-oauth-how-the-open-authorization-framework-works.html">article</a>.</p>
+
+<p>OAuth was released in 2010 and has been expanded upon in OAuth 2.0, released in 2012. It has become a widely used authentication platform used by corporations such as Amazon, Facebook, and Microsoft.</p>
+
+<p>The general operational flow for this authentication is as follows:</p>
+
+<ol>
+  <li>A user needs to authenticate to a website or service outside of their organization</li>
+  <li>The resource forwards the user to a second authorization website on behalf of the user, where OAuth is used to provide the user’s identity</li>
+  <li>If not already authenticated, the user may be asked to provide credentials</li>
+  <li>The second site confirms the user’s identity and returns an access-token to the first website</li>
+  <li>The first site uses this token to authenticate to the necessary services on behalf of the user</li>
+</ol>
+
+<p>Below is a general diagram of the OAuth flow from <a href="https://www.digitalocean.com/community/tutorials/an-introduction-to-oauth-2">Digital Ocean</a>.</p>
+
+<p><img src="/images/OAuth-Token-Stealing/Dig-Ocean-OAuth.jpeg" alt="image-center" class="align-center" /></p>
+
+<p>This is an oversimplified explanation, but you may use OAuth in your everyday workflow without even knowing. For example, let’s say you want to access your Office365 applications such as OneDrive, Office, and SharePoint. Here is the flow:</p>
+
+<ol>
+  <li>You go to ‘Office.com’ and click the button to sign-in.</li>
+  <li>You enter your corporate email address, and the site says, “Taking you to your organization’s sign-in page”</li>
+  <li>You are forwarded to the corporate Okta (or other sign-in) page, where you input your domain credentials and two-factor authentication (if applicable)</li>
+  <li>Once authenticated to your organization, you are redirected back to ‘Office.com’ and have all your applications available to you</li>
+  <li>Behind the scenes, an access-token was given to Office365 to authenticate you, but your domain password was never exchanged</li>
+</ol>
+
+<h2 id="microsoft-graph-api">Microsoft Graph API</h2>
+
+<p>In many modern-day environments, Microsoft Office products are typically integrated to increase productivity, collaboration, and create deliverables. Some common examples are the Microsoft Office Suite (Word, Excel, PowerPoint, etc.) for projects, Outlook for email, SharePoint for sharing company resources, and OneDrive for cloud storage.</p>
+
+<p>To further integrate these tools, Microsoft as introduced the <a href="https://docs.microsoft.com/en-us/graph/use-the-api">Microsoft Graph API</a>, which is a <a href="https://restfulapi.net/">RESTful</a> web API that enables users and applications to access these services through their request system. In order to use these tools, an access-token needs to be granted to the application, through the same OAuth protocols we discussed above.</p>
+
+<p>These API calls can be used to perform many actions on behalf of the user including reading email, sending email, accessing files, reading user information, and much more. If there is an action you would like to perform on a Microsoft cloud product, there is likely an API call for that. For a full list of permissions that can be granted to an app, please visit the official Microsoft permission references <a href="https://docs.microsoft.com/en-us/graph/permissions-reference">documentation</a>.</p>
+
+<p>If you have ever seen a prompt such as the following, you have likely interreacted this service in some way, shape, or form.</p>
+
+<p><img src="/images/OAuth-Token-Stealing/permission-prompt.jpeg" alt="image-center" class="align-center" /></p>
+
+<p>Below are graphic from the Microsoft <a href="https://docs.microsoft.com/en-us/graph/overview">documentation</a> with a visualization of the Graph API.</p>
+
+<p><img src="/images/OAuth-Token-Stealing/ms-graph1.jpeg" alt="image-center" class="align-center" /></p>
+
+<p><img src="/images/OAuth-Token-Stealing/ms-graph2.jpeg" alt="image-center" class="align-center" />
+<br /></p>
+
+<h1 id="room-for-abuse">Room for Abuse</h1>
+
+<h2 id="what-are-the-security-implications">What are the Security Implications?</h2>
+
+<p>If you are reading this, you probably know that we are not here to discuss all the great, legitimate things these tools can be used for. Like most technology, if it can be used for good, it likely can be used for bad. So, if that is the case, what are the negative security implications of this technology?</p>
+
+<p>On one hand, this method of authentication protects the user’s credential material. It also requires authorization from the user and, if configured, their organization. The issue arises when a rogue site or application requests these same access tokens and is given approval through methods such as phishing and social engineering, where security controls are not in place to block the authorization. We will be focusing on this scenario for the purposes of this paper.</p>
+
+<p>Once granted permissions, the malicious service now has an access token that can act on behalf of the user for each service it has permissions to. One of the most interesting parts is that since no credential material is exchanged, the service will still have access after a password reset by the user. This also means this method can bypass multi-factor authentication. The access is only revoked if the token expires, or the permissions are explicitly revoked by either the user or the organization’s Office365/Azure administrator.</p>
+
+<p>This technique was famously used in recent years by APT28 (most commonly known as Fancy Bear, Sofacy, and Pawn Storm). The group implemented OAuth phishing techniques within their 2016 campaigns against the German Christian Democratic Union (CDU), Turkish government, and arguably most famously (at least in the USA) the Democratic National Convention (DNC). Trend Micro has an excellent <a href="https://blog.trendmicro.com/trendlabs-security-intelligence/pawn-storm-abuses-open-authentication-advanced-social-engineering-attacks/">article</a> on this topic.</p>
+
+<p>Through these technologies, this Russian nation-state group was able to gain unauthorized access to emails, files, and other sensitive information.</p>
+
+<p>Below is a graphic from Trend Micro’s article which illustrates the attack chain of the above campaign.</p>
+
+<p><img src="/images/OAuth-Token-Stealing/pawnstorm.jpeg" alt="image-center" class="align-center" /></p>
+
+<h1 id="how-do-these-applications-work">How do these Applications Work?</h1>
+
+<p>To gain an understanding of how these technologies can be abused, we will walk through how to create a proof of concept rogue application from a Red Team perspective. We will create a simple application using the Microsoft documentation.</p>
+
+<p>The first step is to head over to the Azure portal at <a href="https://portal.azure.com">https://portal.azure.com</a>. Once you sign in with a Microsoft account, you should be presented with the home panel. To get to the application management page, we need to go to “Manage Azure Active Directory.”</p>
+
+<p><img src="/images/OAuth-Token-Stealing/azure1.jpeg" alt="image-center" class="align-center" /></p>
+
+<p>On the next page, you should see a panel that includes “App registrations.”</p>
+
+<p><img src="/images/OAuth-Token-Stealing/azure2.jpeg" alt="image-center" class="align-center" /></p>
+
+<p>Now, go to “New Registration”</p>
+
+<p><img src="/images/OAuth-Token-Stealing/azure3.jpeg" alt="image-center" class="align-center" /></p>
+
+<p>Give the application a name and set the supported account types to your choosing. For this demonstration, we chose accounts in any directory and personal Microsoft accounts to cover all target scenarios. We will set redirects later, so do not worry about this for now. Once complete, go ahead and click “Register”.</p>
+
+<p><img src="/images/OAuth-Token-Stealing/azure4.jpeg" alt="image-center" class="align-center" /></p>
+
+<p>After the app is registered, we can see a quickstart guide. I found this to be a great resource in creating an application.</p>
+
+<p><img src="/images/OAuth-Token-Stealing/azure5.jpeg" alt="image-center" class="align-center" /></p>
+
+<p>For this demonstration we will be using a web application.</p>
+
+<p><img src="/images/OAuth-Token-Stealing/azure6.jpeg" alt="image-center" class="align-center" /></p>
+
+<p>I prefer Python for creating my tools, so we will pick their Python option for this demonstration.</p>
+
+<p><img src="/images/OAuth-Token-Stealing/azure7.jpeg" alt="image-center" class="align-center" /></p>
+
+<p>Here we will find sample code and instructions on how to get started with a simple python-based web application.</p>
+
+<p><img src="/images/OAuth-Token-Stealing/azure8.jpeg" alt="image-center" class="align-center" /></p>
+
+<h1 id="creating-an-application">Creating an Application</h1>
+
+<p>Step 1) Configure your application in Azure Portal</p>
+
+<ul>
+  <li>Add a reply URL:
+    <ul>
+      <li>Head over to the “Authentication” tab on our app panel</li>
+    </ul>
+  </li>
+</ul>
+
+<p><img src="/images/OAuth-Token-Stealing/azure9.jpeg" alt="image-center" class="align-center" /></p>
+
+<ul>
+  <li>Add a platform</li>
+</ul>
+
+<p><img src="/images/OAuth-Token-Stealing/azure10.jpeg" alt="image-center" class="align-center" /></p>
+
+<ul>
+  <li>Choose Web Application</li>
+</ul>
+
+<p><img src="/images/OAuth-Token-Stealing/azure11.jpeg" alt="image-center" class="align-center" /></p>
+
+<ul>
+  <li>Add the redirect URL (This can be any web server running your application)</li>
+</ul>
+
+<p><img src="/images/OAuth-Token-Stealing/azure12.jpeg" alt="image-center" class="align-center" /></p>
+
+<p>Step 2) Create a Client Secret</p>
+
+<ul>
+  <li>Go to the “Certificates &amp; secrets” panel. Create a new secret</li>
+</ul>
+
+<p><img src="/images/OAuth-Token-Stealing/azure13.jpeg" alt="image-center" class="align-center" /></p>
+
+<p><img src="/images/OAuth-Token-Stealing/azure14.jpeg" alt="image-center" class="align-center" /></p>
+
+<ul>
+  <li>Add a name and expiration. Once confirmed, you should have secret value</li>
+</ul>
+
+<p><img src="/images/OAuth-Token-Stealing/azure15.jpeg" alt="image-center" class="align-center" /></p>
+
+<p><img src="/images/OAuth-Token-Stealing/azure16.jpeg" alt="image-center" class="align-center" /></p>
+
+<p>We now have everything we need to start creating our Python Application. Go ahead and download the code sample from the quickstart guide page and install requirements if you haven’t already.</p>
+
+<p>There are two main programs we will be concerned with, ‘app.py’ and ‘app_config.py’. These are the backbone for our application.</p>
+
+<p>To configure for use, we need to edit the app_config.py file with our client secret and client ID. These can be found on our application panel.</p>
+
+<p><img src="/images/OAuth-Token-Stealing/config1.jpeg" alt="image-center" class="align-center" /></p>
+
+<p>Notice the REDIRECT_PATH variable is the redirect URL we configured in our setup, if this were setup to a different path, we would need to change it here.</p>
+
+<p>SCOPE is used to define the permissions needed. For the first demonstration, “<em>User.ReadBasic.All</em>’ will work with a work or school account. If you are using a personal account, add ‘<em>User.Read</em>.’</p>
+
+<p>SCOPE will also need to be modified accordingly when adding more API calls as each requires a different permission set.</p>
+
+<p>Now, with the configuration file set up, our application should be ready to test. <em>Run the app.py</em> program. This will create a web server using <a href="https://flask.palletsprojects.com/en/1.1.x/">Flask</a>. By default, it runs on localhost:5000, which is our redirect URL in the configuration.</p>
+
+<p><img src="/images/OAuth-Token-Stealing/app1.jpeg" alt="image-center" class="align-center" /></p>
+
+<p>In a browser, the application index page looks like the following:</p>
+
+<p><img src="/images/OAuth-Token-Stealing/app2.jpeg" alt="image-center" class="align-center" /></p>
+
+<p>When we click on “Sign-in” we are redirected to Microsoft to authenticate with OAuth.</p>
+
+<p><img src="/images/OAuth-Token-Stealing/app3.jpeg" alt="image-center" class="align-center" /></p>
+
+<p>Once authenticated, Microsoft will ask the user if they want to allow this application to access their info, based on the permissions outlined in our SCOPE. As we only have the user read permissions, it is the only permission requested in the prompt.</p>
+
+<p><img src="/images/OAuth-Token-Stealing/app4.jpeg" alt="image-center" class="align-center" /></p>
+
+<p>Once accepted, we can see a request to our token page and the user is authenticated with the application. Behind the scenes, an access-token was returned to our web application.</p>
+
+<p><img src="/images/OAuth-Token-Stealing/app5.jpeg" alt="image-center" class="align-center" /></p>
+
+<p>Microsoft has included a basic call to their Graph API in the demo, which we can see with “Call Microsoft Graph API” hyperlink.</p>
+
+<p>When we go to this page, we can see a JSON response to the API call, displaying the user information.</p>
+
+<p><img src="/images/OAuth-Token-Stealing/app6.jpeg" alt="image-center" class="align-center" /></p>
+
+<p>We have successfully called the Microsoft Graph API!</p>
+
+<h1 id="breaking-down-the-application-api-calls">Breaking Down the Application API Calls</h1>
+
+<p>To make sure we know what is going on under the hood, let’s take a high-level look at the sample code that calls the API. I encourage you to review and understand the rest of the code, but we will not go over the whole program in this paper.</p>
+
+<p>In the <em>app.py</em> code, we can see the API call in the <em>/graphcall</em> Flask route. This code contains the actual API call used on the page.</p>
+
+<p><img src="/images/OAuth-Token-Stealing/api1.jpeg" alt="image-center" class="align-center" /></p>
+
+<p>Here is the API call code:</p>
+
+<p><em>graph_data = requests.get(app_config.ENDPOINT, headers={‘Authorization’: ‘Bearer ‘ + token[‘access_token’]},).json()</em></p>
+
+<p>This is the heart of the application’s API. Let’s add some print statements to understand the actual request.</p>
+
+<p><img src="/images/OAuth-Token-Stealing/api2.jpeg" alt="image-center" class="align-center" /></p>
+
+<p>When we restart the web server and call the Graph API, we get the following output.</p>
+
+<p><img src="/images/OAuth-Token-Stealing/api3.jpeg" alt="image-center" class="align-center" /></p>
+
+<p>Breaking it down, the function is making an HTTP GET request to:</p>
+
+<p><em>‘https://graph.microsoft.com/v1.0/users’ using the header: ”’Authorization’: ‘Bearer ‘ + UserAccesstoken”</em></p>
+
+<p>According to the Microsoft Graph API documentation for “<a href="https://docs.microsoft.com/en-us/graph/api/user-get?view=graph-rest-1.0&amp;tabs=http"><em>Get a user</em></a>”, this is the exact API call you need to make to get the user information.</p>
+
+<p>The token you see is what is passed to the application from Microsoft when the user authenticates with OAuth, along with some other parameters. The most important being the access-token, and the refresh-token. By default, the access-token has a lifespan of one hour and needs to be refreshed by calling the API with the refresh-token. By default, the refresh token is valid for 14 days.</p>
+
+<p>With this token, the application has full access to any resources the user allowed in the permission prompt. With this token, we can create our own requests to the API and access resources such as emails, files, and shared sites.</p>
+
+<p>For documentation on the different types of functionality and parameters, please visit the Microsoft Graph REST API v1.0 <a href="https://docs.microsoft.com/en-us/graph/api/overview?%5C=&amp;view=graph-rest-1.0">Reference</a>.</p>
+
+<h1 id="tools-for-red-teams">Tools for Red Teams</h1>
+
+<h2 id="pwnauth">PwnAuth</h2>
+
+<p>For red teamers and security researchers, there are already existing frameworks that can be used to test this activity. The first tool goes by the name ‘<a href="https://github.com/fireeye/PwnAuth"><em>PwnAuth</em></a>’ and was published in May of 2018 by FireEye. This tool uses a combination of Nginx, Django, and Docker to create an interactive web console for security researchers to test the techniques mentioned above.</p>
+
+<p>This tool currently has the following functionality:</p>
+
+<ul>
+  <li>Reading mail messages</li>
+  <li>Searching the user’s mailbox</li>
+  <li>Reading the user’s contacts</li>
+  <li>Downloading messages and attachments</li>
+  <li>Searching OneDrive and downloading files</li>
+  <li>Sending messages on behalf of the user</li>
+</ul>
+
+<p>Below is a quick snippet from their <a href="https://www.fireeye.com/blog/threat-research/2018/05/shining-a-light-on-oauth-abuse-with-pwnauth.html">website</a> of their web GUI:</p>
+
+<p><img src="/images/OAuth-Token-Stealing/pwnauth.jpeg" alt="image-center" class="align-center" /></p>
+
+<h2 id="office-365-attack-toolkit">Office 365 Attack Toolkit</h2>
+
+<p>Another tool worth mentioning is the <a href="https://github.com/mdsecactivebreach/o365-attack-toolkit"><em>Office 365 Attack Toolkit</em></a>, published by MDSec in July 2019. This tool uses a web framework written in <a href="https://golang.org/">Go</a> with an SQLite database backend to create a similar web interface for security researchers to test their environments against OAuth token stealing with malicious applications.</p>
+
+<p>This tool currently has the following functionality:</p>
+
+<ul>
+  <li>Extraction of keyworded e-mails from Outlook.</li>
+  <li>Creation of Outlook Rules.</li>
+  <li>Extraction of files from OneDrive/Sharepoint.</li>
+  <li>Injection of macros on Word documents.</li>
+</ul>
+
+<p>Below is a quick snippet from their GitHub documentation:</p>
+
+<p><img src="/images/OAuth-Token-Stealing/o365toolkit.jpeg" alt="image-center" class="align-center" /></p>
+
+<h2 id="pynauth">PynAuth</h2>
+
+<p>While the above tools are very useful and well put together, I had some learning curve when attempting to configure them properly. My tools of preference are those which I can quickly setup and takedown and can be quickly modified as needed, with little overhead.</p>
+
+<p>As part of this research, I created a Python-based framework called <a href="https://github.com/Synzack/PynAuth"><em>PynAuth</em></a> which is a tool that utilizes the same techniques as the above tools. The difference is that it is written completely in Python. It is designed to be modular, and can be run right your terminal. The tool is meant to be easy to use and easily customizable depending on which API calls you wish to implement.</p>
+
+<p>The tool’s name is a play on the <em>PwnAuth</em> tool name written by FireEye. <em>*Please note, while this tool is functional, it may contain bugs and is currently in a beta stage</em></p>
+
+<p>Current capabilities:</p>
+
+<ul>
+  <li>Get user information</li>
+  <li>Send email on behalf of the user</li>
+  <li>Query users’ email inbox for keywords, display message, and download attachments</li>
+  <li>Access users’ OneDrive folders and download files as desired</li>
+  <li>Create email inbox rules</li>
+  <li>List/Delete email inbox rules</li>
+  <li>Refresh the users’ tokens, which allow for access up to 14 days</li>
+</ul>
+
+<p>Terminal View:</p>
+
+<p><img src="/images/OAuth-Token-Stealing/pynauth.jpeg" alt="image-center" class="align-center" /></p>
+
+<p>Example: Query Email</p>
+
+<p><img src="/images/OAuth-Token-Stealing/pynauth2.jpeg" alt="image-center" class="align-center" /></p>
+
+<p><img src="/images/OAuth-Token-Stealing/pynauth3.jpeg" alt="image-center" class="align-center" /></p>
+
+<p><img src="/images/OAuth-Token-Stealing/pynauth4.jpeg" alt="image-center" class="align-center" /></p>
+
+<h1 id="defending-against-oauth-application-attacks">Defending Against OAuth Application Attacks</h1>
+
+<p>While these techniques may provide a stealthy means to keep persistence in a target network, there are many measures that can be taken to prevent these attacks before they happen. Blocks for these applications will typically require proper configuration, as by default, no admin permission is needed for most resources the user already has permission to. These include things like read/write permissions to personal email and accessing both personal and corporate cloud storage resources.</p>
+
+<p>Some security measures that can be implemented include:</p>
+
+<ul>
+  <li>Limiting the permissions that can be requested by third-party applications</li>
+  <li>Banning third-party applications altogether</li>
+  <li>Creating application white lists to include only those in use by your organization</li>
+  <li>Query your organization’s users and the applications they have granted permissions to</li>
+  <li>Logging user consent events within your cloud environment</li>
+</ul>
+
+<p>FireEye has even published a PowerShell script which can help administrators hunt for malicious applications within their cloud environments. The tool can be found on <a href="https://github.com/dmb2168/OAuthHunting">GitHub</a>.</p>
+
+<p>If you are an end user, be sure to always review third party permissions before granting access to your accounts, whether personal or professional. When in doubt, confirm with your administrator whether the application is legitimate or not.</p>
+
+
+        
+      </section>
+
+      <footer class="page__meta">
+        
+        
+
+
+        
+          <p class="page__date"><strong><i class="fas fa-fw fa-calendar-alt" aria-hidden="true"></i> Updated:</strong> <time datetime="2020-05-29T00:00:00-04:00">May 29, 2020</time></p>
+        
+      </footer>
+
+      <section class="page__share">
+  
+    <h4 class="page__share-title">Share on</h4>
+  
+
+  <a href="https://twitter.com/intent/tweet?text=Oauth+Token+Stealing%20http%3A%2F%2Flocalhost%3A4000%2FOAuth-Token-Stealing%2F" class="btn btn--twitter" onclick="window.open(this.href, 'window', 'left=20,top=20,width=500,height=500,toolbar=1,resizable=0'); return false;" title="Share on Twitter"><i class="fab fa-fw fa-twitter" aria-hidden="true"></i><span> Twitter</span></a>
+
+  <a href="https://www.facebook.com/sharer/sharer.php?u=http%3A%2F%2Flocalhost%3A4000%2FOAuth-Token-Stealing%2F" class="btn btn--facebook" onclick="window.open(this.href, 'window', 'left=20,top=20,width=500,height=500,toolbar=1,resizable=0'); return false;" title="Share on Facebook"><i class="fab fa-fw fa-facebook" aria-hidden="true"></i><span> Facebook</span></a>
+
+  <a href="https://www.linkedin.com/shareArticle?mini=true&url=http%3A%2F%2Flocalhost%3A4000%2FOAuth-Token-Stealing%2F" class="btn btn--linkedin" onclick="window.open(this.href, 'window', 'left=20,top=20,width=500,height=500,toolbar=1,resizable=0'); return false;" title="Share on LinkedIn"><i class="fab fa-fw fa-linkedin" aria-hidden="true"></i><span> LinkedIn</span></a>
+</section>
+
+
+      
+  <nav class="pagination">
+    
+      <a href="/Weaponizing-28-Year-Old-XLM-Macros/" class="pagination--pager" title="Weaponizing 28 Year Old Xlm Macros
+">Previous</a>
+    
+    
+      <a href="#" class="pagination--pager disabled">Next</a>
+    
+  </nav>
+
+    </div>
+
+    
+  </article>
+
+  
+  
+    <div class="page__related">
+      <h4 class="page__related-title">You may also enjoy</h4>
+      <div class="grid__wrapper">
+        
+          
+
+
+
+<div class="grid__item">
+  <article class="archive__item" itemscope itemtype="https://schema.org/CreativeWork">
+    
+    <h2 class="archive__item-title" itemprop="headline">
+      
+        <a href="/Weaponizing-28-Year-Old-XLM-Macros/" rel="permalink">Weaponizing 28 Year Old Xlm Macros
+</a>
+      
+    </h2>
+    
+      <p class="page__meta"><i class="far fa-clock" aria-hidden="true"></i> 
+
+
+
+
+  9 minute read
+
+</p>
+    
+    <p class="archive__item-excerpt" itemprop="description">Overview
+
+</p>
+  </article>
+</div>
+
+        
+      </div>
+    </div>
+  
+  
+</div>
+
+    </div>
+
+    
+
+    <div id="footer" class="page__footer">
+      <footer>
+        <!-- start custom footer snippets -->
+
+<!-- end custom footer snippets -->
+        <div class="page__footer-follow">
+  <ul class="social-icons">
+    
+      <li><strong>Follow:</strong></li>
+    
+
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+
+    <li><a href="/feed.xml"><i class="fas fa-fw fa-rss-square" aria-hidden="true"></i> Feed</a></li>
+  </ul>
+</div>
+
+<div class="page__footer-copyright">&copy; 2020 Zach Stein. Powered by <a href="https://jekyllrb.com" rel="nofollow">Jekyll</a> &amp; <a href="https://mademistakes.com/work/minimal-mistakes-jekyll-theme/" rel="nofollow">Minimal Mistakes</a>.</div>
+
+      </footer>
+    </div>
+
+    
+  <script src="/assets/js/main.min.js"></script>
+  <script src="https://kit.fontawesome.com/4eee35f757.js"></script>
+
+
+
+
+
+
+
+
+
+
+  </body>
+</html>
