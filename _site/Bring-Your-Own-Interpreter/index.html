@@ -1,0 +1,774 @@
+<!doctype html>
+<!--
+  Minimal Mistakes Jekyll Theme 4.19.2 by Michael Rose
+  Copyright 2013-2019 Michael Rose - mademistakes.com | @mmistakes
+  Free for personal and commercial use under the MIT license
+  https://github.com/mmistakes/minimal-mistakes/blob/master/LICENSE
+-->
+<html lang="en" class="no-js">
+  <head>
+    <meta charset="utf-8">
+
+<!-- begin _includes/seo.html --><title>Bring Your Own Interpreter (BYOI) - Red Team Blog</title>
+<meta name="description" content="Preface  These techniques that will be discussed in this paper were not discovered by myself. This technique was made popular by Marcello Salvati, a red teamer at Black Hills Information Security. He published an article on the topic that can be found on the Black Hills blog. SILENTTRINITY is his C2 (command and control) implementation of the concept. Be sure to check out his work.  The purpose of this paper is to break down the concepts in a way that is (hopefully) easy to understand and increase awareness into the new offensive landscape when it comes to tooling and detection.  The (Offensive) Problem Set  In the not so distant past, red teamers and malicious actors alike loved to utilize PowerShell for their offensive scripts, C2 channels, malware, basically everything. It was built into modern Windows operating systems by default, could pull down remote scripts, execute in memory, and was basically invisible due to lack of controls in place.  In the last couple years, defensive products and Microsoft caught on to the abuse of this scripting language. After PowerShell v1, protections started being integrated such as Transcript logging, Script Block Logging, Module Logging, and AMSI.  Products such as EDRs started creating rules that looked for certain strings/commands, such as using “IEX (New-Object Net.WebClient).DownloadString” to download remote scripts or “exec bypass” to import custom scripts. Some environments block PowerShell altogether or alert anytime it is used.  While PowerShell may not be completely “dead”, as there are always new bypasses, it has become more trouble than it is worth in most red team engagements (and likely advanced threat actor campaigns). It has become high risk from a stealth perspective with all the detections associated with it.  What is PowerShell? Why did it Work so Well?  PowerShell was built by Microsoft for task automation and configuration management, with its own scripting language. The reason it was able to be integrated into virtually all new Windows operating systems is that it is built upon the .NET Framework. The best/easiest explanation I could find for the .NET Framework can be found here.  The quick one sentence summary of this framework is that it is a shared library of code that contains Application Programming Interfaces (APIs) used to develop applications that can be used in programming languages.  The important thing to note, is that the .NET Framework is not specific to any language. There are many different languages that utilize the framework to function. The .NET Framework is the backbone for many common Microsoft programming languages you may know, including (but certainly are not limited to):     C#   F#   Visual Basic   PowerShell   IronPython   IronRuby   PowerShell and C# are built into Windows by default, so it makes them very easy to use and execute without any external DLLs. There are even many third-party programming languages as well. If you wanted to, you could create your own language from the .NET framework.  .NET Assemblies are the results of compiling a .NET language. Think of an EXE or DLL when you compile a C# program, these are .NET assemblies. These assemblies can be executed by ANY .NET language and can be loaded reflectively in memory using .NET’s Assembly.Load().  Remember these points moving forward in this paper.  Offensive Tooling Shift  If you follow the offensive tooling community, you may have noticed a shift in methods, where C# is now the go-to language over PowerShell. Many of the common PowerShell tools have been ported to the C#.  PowerShell Tool -&gt; C# Tool     PowerUp -&gt; SharpUp   BloodHound -&gt; SharpHound   PowerView -&gt; SharpView   MimiKatz -&gt; SafetyKatz   The reason for this is best described in Marcello’s talks, but basically the reason is that all the recent defenses and detections we have seen around PowerShell target PowerShell itself. They do not target the underlying .NET framework. Since C# is another .NET language, and arguably the most commonly known, this became the new offensive language of choice.  While there are new defenses such as AMSI updates coming to .NET 4.8, these are not present in prior .NET versions, which are running on most Windows hosts today.  Slides from Marcello’s BSides Talk:    Downsides to C#  While C# can be a very powerful language, (and in theory can do anything PowerShell can do as it is built on the same framework), the largest downside is that to execute C# code, it must be compiled into an assembly, such as an EXE or DLL. This generally takes more time and must be re-compiled whenever a change is made. While these assemblies can be loaded reflectively into memory, many times, you may need to drop the file onto disk if this option is unavailable.  While these features are not deal-breakers, they are simply not as easy as loading a remote PowerShell script into memory and executing.  Bring Your Own Interpreter  How does BYOI come into all of this? Remember the point above that .NET assemblies can be executed by ANY .NET language? Because of this fact, any .NET language can be embedded in any other .NET language. There is no limit to how much embedding can be done.  For example,     C# can be run in PowerShell   PowerShell can be run within IronPython   IronPython can be run within PowerShell within C#   This is the idea that Bring Your Own Interpreter is built on. You can use a built-in Windows .NET language, such as C# or PowerShell to execute other .NET languages, and even in memory depending on the third-party language constraints.  Boo!  So, .NET languages can be embedded in each other, but which one do you choose? From an offensive perspective, we would want a language that can compile to memory and be able to support PInvoke, which is the ability to run unmanaged code (code not based in .NET, think importing non-.NET DLLs for example).  With the current research on the topic, Boolang seems to be the best language found (so far) to suit these needs. Boolang was developed in 2009 by Rodrigo B. de Oliveira. It is built on the .NET framework and its syntax is inspired by Python. If you work with the code, it feels like a cross between C# and Python. It can import unmanaged code and compile everything to memory. This is ideal from an offensive perspective because as soon as the code runs, it is gone. No evidence is left on disk, and there is a very minimal amount of information left in memory.  Making Your Interpreter  Now we have the base knowledge and .NET language we want to use, let’s investigate how we embed the languages and make our interpreter.  Download Boolang  Go to the official GitHub page and download the latest release of the programming language. The reason we need to do this is because there are 4 DLLs that need to be imported into our C# code to compile and execute the Boolang code. These are:     Boo.Lang.dll   Boo.Lang.Parser.dll   Boo.Lang.Extensions.dll   Boo.Lang.Compiler.dll   These DLLs can be put on the host, imported dynamically from the C# code, or even packed into the final compiled executable.  If you are interested, I encourage you to read the code documentation and learn how it runs independently of C#, but it will not be covered in the scope of this paper.  Create the C# Compiler  Let’s create a simple Boolang script. You can do this by opening your favorite text editor and creating a file named “script.boo” (or whatever you like).    For the proof of concept, we will use the official Boolang Compiler API code to run Boolang from C#, with a few modifications to call our Main class and MainScript method.    Alright, let’s run it.    We have successfully embedded a .NET language in another, compiled it, and executed it in memory!  Remote Scripting  You may be thinking, this is cool, but now I must drop TWO files to disk. Well, let’s build on our code a little. We can use the WebClient class to get a remote URL and read in a remote script.    Now we will host a remote script named “script” (the .boo extension isn’t necessary) at:  http://pc-tech.pro/script    Let’s run it.    Now, we have a fully functioning assembly that we can execute on the target host and compile ANY remote script we want to memory and execute it. There are some great offensive implications to this:     Flexibility            No compiling needed every time you want to execute a script, just pull-down source code (like the PowerShell days)       Can run any script, using the same executable           OPSEC (Operations Security)            Since it is compiled to memory, no traces of the script are left on disc       Even in memory, it leaves a very minimal footprint as it is discarded after use       From an analysis perspective, you would only see a non-malicious C# compiler spinning up and executing, making a single network connection       Only need to drop one file to disk (unless you reflectively load it or use other techniques)       Bypasses AMSI in .NET &lt; 4.8 and other protections seen in PowerShell           Bypassing Protections  As mentioned previously, BYOI tactics have the ability to bypass AMSI, but what does that mean? AMSI is the Windows Antimalware Scan Interface and allows applications and services to integrate with any antimalware product on the host. Some common windows components that integrate with AMSI are:     User Account Control, or UAC (elevation of EXE, COM, MSI, or ActiveX installation)   PowerShell (scripts, interactive use, and dynamic code evaluation)   Windows Script Host (wscript.exe and cscript.exe)   JavaScript and VBScript   Office VBA macros   Basically, anything that is executed in an AMSI integrated component will be ran through the host’s antivirus program. To demonstrate this, there is a certain test string that can trigger AMSI:  Invoke-Expression ‘AMSI Test Sample: 7e72c3ce-861b-4339-8740-0ac1484c1386’    In theory, anything that calls this string that is integrated with AMSI, should trigger a malware detection. We are going to create 2 scripts that call this string. One will be a PowerShell script; one will be an embedded Boolang script. Both will be hosted remotely. For all intents and purposes, they will do the same thing, which is printing the test string.  PowerShell      Boolang      As you can see, we have just executed our “malicious” Boolang script in memory, without getting caught by AMSI, while it was immediately caught in PowerShell.  What About EDR?  EDR is typically much more powerful than the built-in AV on Windows, so what does the execution look like in these tools? Again, we will just run our “Hello Boolang” script in memory from a remote source.  The first thing we notice is an informational alert saying the file meets the lowest-confidence threshold for a malicious file. This may vary from EDR to EDR, as this alert was based on this specific EDR’s own built in detections and custom rules. Ideally, we would want no detection, but overall, not bad for the first try with no obfuscation.      The following are the detection details from the process tree. As we can see, no files were quarantined, and no AV detections are present. Only network operations to our server and DLL loads were observed. Nothing from an analysis perspective that immediately sparks malicious actions.        Mimikatz  Let’s try doing something that is actually malicious on the host through our Boolang interpreter. Breaking down the below Boolang script, we are going to load in the 32-bit or 64-bit SharpSploit Mimikatz DLL (depending on architecture) with only Base64 encoding. We will then execute it in memory and print the results of “privilege::debug sekurlsa::logonpasswords”.  Specifically, this DLL (well known, definitely malicious):      When we run it, we see that the EDR did in fact catch and terminate the program, but what did it actually detect?    Looking at the alert, it triggered a High severity alert, ONLY because we touched LSASS. (No matter how stealthy a program is, it would get caught for touching LSASS in this way). It did not alert because we loaded the script or DLL into memory or executed Mimikatz itself. We can see below, the only detections on the actual executable was that it still met the lowest-confidence threshold for malicious files.    When looking at the file details, we only see the same DLL loads and the network connections.      Detections and Mitigations  While there will likely be more detection in the future, there are not many great ways of detecting the actual execution of BYOI tradecraft currently. Below are a few points that could help in aiding detection/mitigation of this.     AMSI signatures for the third-party scripting languages. This is out of our control and we will have to see how Microsoft creates detections in AMSI for .NET 4.8. Likely, there will be work arounds until most edge cases are found. Similar to how the detections for PowerShell evolved   Detecting .NET scripting language assemblies being loaded in a managed processes’ AppDomain through technologies such as Event tracing for Windows   Application whitelisting to block unknown or unapproved files from being executed on the host   Focusing on TTPs (Tactics, Techniques, and Procedures) to catch the malicious behavior. For example, the EDR did not detect the file or the execution, but it did catch the act of touching LSASS.   In Conclusion  With the increasing detections and alerting around tools such as PowerShell, Bring Your Own Interpreter style tradecraft as well as spin offs will likely become more prevalent in advanced attacks. Until more detections and controls are developed into the underlying techniques, it is important to have robust and up to date malware signatures (more so TTPs than hashes/IP IOCs), application white lists, and tools to add additional visibility such as EDR technology. ">
+
+
+  <meta name="author" content="Zach Stein">
+
+
+<meta property="og:type" content="article">
+<meta property="og:locale" content="en_US">
+<meta property="og:site_name" content="Red Team Blog">
+<meta property="og:title" content="Bring Your Own Interpreter (BYOI)">
+<meta property="og:url" content="http://localhost:4000/Bring-Your-Own-Interpreter/">
+
+
+  <meta property="og:description" content="Preface  These techniques that will be discussed in this paper were not discovered by myself. This technique was made popular by Marcello Salvati, a red teamer at Black Hills Information Security. He published an article on the topic that can be found on the Black Hills blog. SILENTTRINITY is his C2 (command and control) implementation of the concept. Be sure to check out his work.  The purpose of this paper is to break down the concepts in a way that is (hopefully) easy to understand and increase awareness into the new offensive landscape when it comes to tooling and detection.  The (Offensive) Problem Set  In the not so distant past, red teamers and malicious actors alike loved to utilize PowerShell for their offensive scripts, C2 channels, malware, basically everything. It was built into modern Windows operating systems by default, could pull down remote scripts, execute in memory, and was basically invisible due to lack of controls in place.  In the last couple years, defensive products and Microsoft caught on to the abuse of this scripting language. After PowerShell v1, protections started being integrated such as Transcript logging, Script Block Logging, Module Logging, and AMSI.  Products such as EDRs started creating rules that looked for certain strings/commands, such as using “IEX (New-Object Net.WebClient).DownloadString” to download remote scripts or “exec bypass” to import custom scripts. Some environments block PowerShell altogether or alert anytime it is used.  While PowerShell may not be completely “dead”, as there are always new bypasses, it has become more trouble than it is worth in most red team engagements (and likely advanced threat actor campaigns). It has become high risk from a stealth perspective with all the detections associated with it.  What is PowerShell? Why did it Work so Well?  PowerShell was built by Microsoft for task automation and configuration management, with its own scripting language. The reason it was able to be integrated into virtually all new Windows operating systems is that it is built upon the .NET Framework. The best/easiest explanation I could find for the .NET Framework can be found here.  The quick one sentence summary of this framework is that it is a shared library of code that contains Application Programming Interfaces (APIs) used to develop applications that can be used in programming languages.  The important thing to note, is that the .NET Framework is not specific to any language. There are many different languages that utilize the framework to function. The .NET Framework is the backbone for many common Microsoft programming languages you may know, including (but certainly are not limited to):     C#   F#   Visual Basic   PowerShell   IronPython   IronRuby   PowerShell and C# are built into Windows by default, so it makes them very easy to use and execute without any external DLLs. There are even many third-party programming languages as well. If you wanted to, you could create your own language from the .NET framework.  .NET Assemblies are the results of compiling a .NET language. Think of an EXE or DLL when you compile a C# program, these are .NET assemblies. These assemblies can be executed by ANY .NET language and can be loaded reflectively in memory using .NET’s Assembly.Load().  Remember these points moving forward in this paper.  Offensive Tooling Shift  If you follow the offensive tooling community, you may have noticed a shift in methods, where C# is now the go-to language over PowerShell. Many of the common PowerShell tools have been ported to the C#.  PowerShell Tool -&gt; C# Tool     PowerUp -&gt; SharpUp   BloodHound -&gt; SharpHound   PowerView -&gt; SharpView   MimiKatz -&gt; SafetyKatz   The reason for this is best described in Marcello’s talks, but basically the reason is that all the recent defenses and detections we have seen around PowerShell target PowerShell itself. They do not target the underlying .NET framework. Since C# is another .NET language, and arguably the most commonly known, this became the new offensive language of choice.  While there are new defenses such as AMSI updates coming to .NET 4.8, these are not present in prior .NET versions, which are running on most Windows hosts today.  Slides from Marcello’s BSides Talk:    Downsides to C#  While C# can be a very powerful language, (and in theory can do anything PowerShell can do as it is built on the same framework), the largest downside is that to execute C# code, it must be compiled into an assembly, such as an EXE or DLL. This generally takes more time and must be re-compiled whenever a change is made. While these assemblies can be loaded reflectively into memory, many times, you may need to drop the file onto disk if this option is unavailable.  While these features are not deal-breakers, they are simply not as easy as loading a remote PowerShell script into memory and executing.  Bring Your Own Interpreter  How does BYOI come into all of this? Remember the point above that .NET assemblies can be executed by ANY .NET language? Because of this fact, any .NET language can be embedded in any other .NET language. There is no limit to how much embedding can be done.  For example,     C# can be run in PowerShell   PowerShell can be run within IronPython   IronPython can be run within PowerShell within C#   This is the idea that Bring Your Own Interpreter is built on. You can use a built-in Windows .NET language, such as C# or PowerShell to execute other .NET languages, and even in memory depending on the third-party language constraints.  Boo!  So, .NET languages can be embedded in each other, but which one do you choose? From an offensive perspective, we would want a language that can compile to memory and be able to support PInvoke, which is the ability to run unmanaged code (code not based in .NET, think importing non-.NET DLLs for example).  With the current research on the topic, Boolang seems to be the best language found (so far) to suit these needs. Boolang was developed in 2009 by Rodrigo B. de Oliveira. It is built on the .NET framework and its syntax is inspired by Python. If you work with the code, it feels like a cross between C# and Python. It can import unmanaged code and compile everything to memory. This is ideal from an offensive perspective because as soon as the code runs, it is gone. No evidence is left on disk, and there is a very minimal amount of information left in memory.  Making Your Interpreter  Now we have the base knowledge and .NET language we want to use, let’s investigate how we embed the languages and make our interpreter.  Download Boolang  Go to the official GitHub page and download the latest release of the programming language. The reason we need to do this is because there are 4 DLLs that need to be imported into our C# code to compile and execute the Boolang code. These are:     Boo.Lang.dll   Boo.Lang.Parser.dll   Boo.Lang.Extensions.dll   Boo.Lang.Compiler.dll   These DLLs can be put on the host, imported dynamically from the C# code, or even packed into the final compiled executable.  If you are interested, I encourage you to read the code documentation and learn how it runs independently of C#, but it will not be covered in the scope of this paper.  Create the C# Compiler  Let’s create a simple Boolang script. You can do this by opening your favorite text editor and creating a file named “script.boo” (or whatever you like).    For the proof of concept, we will use the official Boolang Compiler API code to run Boolang from C#, with a few modifications to call our Main class and MainScript method.    Alright, let’s run it.    We have successfully embedded a .NET language in another, compiled it, and executed it in memory!  Remote Scripting  You may be thinking, this is cool, but now I must drop TWO files to disk. Well, let’s build on our code a little. We can use the WebClient class to get a remote URL and read in a remote script.    Now we will host a remote script named “script” (the .boo extension isn’t necessary) at:  http://pc-tech.pro/script    Let’s run it.    Now, we have a fully functioning assembly that we can execute on the target host and compile ANY remote script we want to memory and execute it. There are some great offensive implications to this:     Flexibility            No compiling needed every time you want to execute a script, just pull-down source code (like the PowerShell days)       Can run any script, using the same executable           OPSEC (Operations Security)            Since it is compiled to memory, no traces of the script are left on disc       Even in memory, it leaves a very minimal footprint as it is discarded after use       From an analysis perspective, you would only see a non-malicious C# compiler spinning up and executing, making a single network connection       Only need to drop one file to disk (unless you reflectively load it or use other techniques)       Bypasses AMSI in .NET &lt; 4.8 and other protections seen in PowerShell           Bypassing Protections  As mentioned previously, BYOI tactics have the ability to bypass AMSI, but what does that mean? AMSI is the Windows Antimalware Scan Interface and allows applications and services to integrate with any antimalware product on the host. Some common windows components that integrate with AMSI are:     User Account Control, or UAC (elevation of EXE, COM, MSI, or ActiveX installation)   PowerShell (scripts, interactive use, and dynamic code evaluation)   Windows Script Host (wscript.exe and cscript.exe)   JavaScript and VBScript   Office VBA macros   Basically, anything that is executed in an AMSI integrated component will be ran through the host’s antivirus program. To demonstrate this, there is a certain test string that can trigger AMSI:  Invoke-Expression ‘AMSI Test Sample: 7e72c3ce-861b-4339-8740-0ac1484c1386’    In theory, anything that calls this string that is integrated with AMSI, should trigger a malware detection. We are going to create 2 scripts that call this string. One will be a PowerShell script; one will be an embedded Boolang script. Both will be hosted remotely. For all intents and purposes, they will do the same thing, which is printing the test string.  PowerShell      Boolang      As you can see, we have just executed our “malicious” Boolang script in memory, without getting caught by AMSI, while it was immediately caught in PowerShell.  What About EDR?  EDR is typically much more powerful than the built-in AV on Windows, so what does the execution look like in these tools? Again, we will just run our “Hello Boolang” script in memory from a remote source.  The first thing we notice is an informational alert saying the file meets the lowest-confidence threshold for a malicious file. This may vary from EDR to EDR, as this alert was based on this specific EDR’s own built in detections and custom rules. Ideally, we would want no detection, but overall, not bad for the first try with no obfuscation.      The following are the detection details from the process tree. As we can see, no files were quarantined, and no AV detections are present. Only network operations to our server and DLL loads were observed. Nothing from an analysis perspective that immediately sparks malicious actions.        Mimikatz  Let’s try doing something that is actually malicious on the host through our Boolang interpreter. Breaking down the below Boolang script, we are going to load in the 32-bit or 64-bit SharpSploit Mimikatz DLL (depending on architecture) with only Base64 encoding. We will then execute it in memory and print the results of “privilege::debug sekurlsa::logonpasswords”.  Specifically, this DLL (well known, definitely malicious):      When we run it, we see that the EDR did in fact catch and terminate the program, but what did it actually detect?    Looking at the alert, it triggered a High severity alert, ONLY because we touched LSASS. (No matter how stealthy a program is, it would get caught for touching LSASS in this way). It did not alert because we loaded the script or DLL into memory or executed Mimikatz itself. We can see below, the only detections on the actual executable was that it still met the lowest-confidence threshold for malicious files.    When looking at the file details, we only see the same DLL loads and the network connections.      Detections and Mitigations  While there will likely be more detection in the future, there are not many great ways of detecting the actual execution of BYOI tradecraft currently. Below are a few points that could help in aiding detection/mitigation of this.     AMSI signatures for the third-party scripting languages. This is out of our control and we will have to see how Microsoft creates detections in AMSI for .NET 4.8. Likely, there will be work arounds until most edge cases are found. Similar to how the detections for PowerShell evolved   Detecting .NET scripting language assemblies being loaded in a managed processes’ AppDomain through technologies such as Event tracing for Windows   Application whitelisting to block unknown or unapproved files from being executed on the host   Focusing on TTPs (Tactics, Techniques, and Procedures) to catch the malicious behavior. For example, the EDR did not detect the file or the execution, but it did catch the act of touching LSASS.   In Conclusion  With the increasing detections and alerting around tools such as PowerShell, Bring Your Own Interpreter style tradecraft as well as spin offs will likely become more prevalent in advanced attacks. Until more detections and controls are developed into the underlying techniques, it is important to have robust and up to date malware signatures (more so TTPs than hashes/IP IOCs), application white lists, and tools to add additional visibility such as EDR technology. ">
+
+
+
+
+
+
+
+  <meta property="article:published_time" content="2020-10-15T00:00:00-04:00">
+
+
+
+
+
+  
+
+  
+
+
+<link rel="canonical" href="http://localhost:4000/Bring-Your-Own-Interpreter/">
+
+
+
+
+<script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    
+      "@type": "Person",
+      "name": "Zach Stein",
+      "url": "http://localhost:4000/"
+    
+  }
+</script>
+
+
+
+
+
+
+<!-- end _includes/seo.html -->
+
+
+<link href="/feed.xml" type="application/atom+xml" rel="alternate" title="Red Team Blog Feed">
+
+<!-- https://t.co/dKP3o1e -->
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<script>
+  document.documentElement.className = document.documentElement.className.replace(/\bno-js\b/g, '') + ' js ';
+</script>
+
+<!-- For all browsers -->
+<link rel="stylesheet" href="/assets/css/main.css">
+
+<!--[if IE]>
+  <style>
+    /* old IE unsupported flexbox fixes */
+    .greedy-nav .site-title {
+      padding-right: 3em;
+    }
+    .greedy-nav button {
+      position: absolute;
+      top: 0;
+      right: 0;
+      height: 100%;
+    }
+  </style>
+<![endif]-->
+
+
+
+    <!-- start custom head snippets -->
+
+<!-- insert favicons. use https://realfavicongenerator.net/ -->
+
+<!-- end custom head snippets -->
+
+  </head>
+
+  <body class="layout--single">
+    <nav class="skip-links">
+  <h2 class="screen-reader-text">Skip links</h2>
+  <ul>
+    <li><a href="#site-nav" class="screen-reader-shortcut">Skip to primary navigation</a></li>
+    <li><a href="#main" class="screen-reader-shortcut">Skip to content</a></li>
+    <li><a href="#footer" class="screen-reader-shortcut">Skip to footer</a></li>
+  </ul>
+</nav>
+
+    <!--[if lt IE 9]>
+<div class="notice--danger align-center" style="margin: 0;">You are using an <strong>outdated</strong> browser. Please <a href="https://browsehappy.com/">upgrade your browser</a> to improve your experience.</div>
+<![endif]-->
+
+    
+
+<div class="masthead">
+  <div class="masthead__inner-wrap">
+    <div class="masthead__menu">
+      <nav id="site-nav" class="greedy-nav">
+        
+        <a class="site-title" href="/">
+          Red Team Blog
+          
+        </a>
+        <ul class="visible-links"><li class="masthead__menu-item">
+              <a href="/">Home</a>
+            </li><li class="masthead__menu-item">
+              <a href="/posts">Posts</a>
+            </li><li class="masthead__menu-item">
+              <a href="/about">About</a>
+            </li></ul>
+        
+        <button class="greedy-nav__toggle hidden" type="button">
+          <span class="visually-hidden">Toggle menu</span>
+          <div class="navicon"></div>
+        </button>
+        <ul class="hidden-links hidden"></ul>
+      </nav>
+    </div>
+  </div>
+</div>
+
+
+    <div class="initial-content">
+      
+
+
+
+<div id="main" role="main">
+  
+  <div class="sidebar sticky">
+  
+
+
+<div itemscope itemtype="https://schema.org/Person">
+
+  
+    <div class="author__avatar">
+      
+        <img src="/images/me.jpg" alt="Zach Stein" itemprop="image">
+      
+    </div>
+  
+
+  <div class="author__content">
+    
+      <h3 class="author__name" itemprop="name">Zach Stein</h3>
+    
+    
+      <div class="author__bio" itemprop="description">
+        <p>Red Team @ ReliaQuest</p>
+
+      </div>
+    
+  </div>
+
+  <div class="author__urls-wrapper">
+    <button class="btn btn--inverse">Follow</button>
+    <ul class="author__urls social-icons">
+      
+        <li itemprop="homeLocation" itemscope itemtype="https://schema.org/Place">
+          <i class="fas fa-fw fa-map-marker-alt" aria-hidden="true"></i> <span itemprop="name">Tampa, FL</span>
+        </li>
+      
+
+      
+        
+          
+            <li><a href="mailto:zachinfosec@gmail.com" rel="nofollow noopener noreferrer"><i class="fas fa-fw fa-envelope-square" aria-hidden="true"></i><span class="label">Email</span></a></li>
+          
+        
+          
+        
+          
+            <li><a href="https://twitter.com/synzack21" rel="nofollow noopener noreferrer"><i class="fab fa-fw fa-twitter-square" aria-hidden="true"></i><span class="label">Twitter</span></a></li>
+          
+        
+          
+        
+          
+            <li><a href="https://github.com/Synzack" rel="nofollow noopener noreferrer"><i class="fab fa-fw fa-github" aria-hidden="true"></i><span class="label">GitHub</span></a></li>
+          
+        
+          
+        
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      <!--
+  <li>
+    <a href="http://link-to-whatever-social-network.com/user/" itemprop="sameAs" rel="nofollow noopener noreferrer">
+      <i class="fas fa-fw" aria-hidden="true"></i> Custom Social Profile Link
+    </a>
+  </li>
+-->
+    </ul>
+  </div>
+</div>
+
+  
+  </div>
+
+
+
+  <article class="page" itemscope itemtype="https://schema.org/CreativeWork">
+    <meta itemprop="headline" content="Bring Your Own Interpreter (BYOI)">
+    <meta itemprop="description" content="PrefaceThese techniques that will be discussed in this paper were not discovered by myself. This technique was made popular by Marcello Salvati, a red teamer at Black Hills Information Security. He published an article on the topic that can be found on the Black Hills blog. SILENTTRINITY is his C2 (command and control) implementation of the concept. Be sure to check out his work.The purpose of this paper is to break down the concepts in a way that is (hopefully) easy to understand and increase awareness into the new offensive landscape when it comes to tooling and detection.The (Offensive) Problem SetIn the not so distant past, red teamers and malicious actors alike loved to utilize PowerShell for their offensive scripts, C2 channels, malware, basically everything. It was built into modern Windows operating systems by default, could pull down remote scripts, execute in memory, and was basically invisible due to lack of controls in place.In the last couple years, defensive products and Microsoft caught on to the abuse of this scripting language. After PowerShell v1, protections started being integrated such as Transcript logging, Script Block Logging, Module Logging, and AMSI.Products such as EDRs started creating rules that looked for certain strings/commands, such as using “IEX (New-Object Net.WebClient).DownloadString” to download remote scripts or “exec bypass” to import custom scripts. Some environments block PowerShell altogether or alert anytime it is used.While PowerShell may not be completely “dead”, as there are always new bypasses, it has become more trouble than it is worth in most red team engagements (and likely advanced threat actor campaigns). It has become high risk from a stealth perspective with all the detections associated with it.What is PowerShell? Why did it Work so Well?PowerShell was built by Microsoft for task automation and configuration management, with its own scripting language. The reason it was able to be integrated into virtually all new Windows operating systems is that it is built upon the .NET Framework. The best/easiest explanation I could find for the .NET Framework can be found here.The quick one sentence summary of this framework is that it is a shared library of code that contains Application Programming Interfaces (APIs) used to develop applications that can be used in programming languages.The important thing to note, is that the .NET Framework is not specific to any language. There are many different languages that utilize the framework to function. The .NET Framework is the backbone for many common Microsoft programming languages you may know, including (but certainly are not limited to):  C#  F#  Visual Basic  PowerShell  IronPython  IronRubyPowerShell and C# are built into Windows by default, so it makes them very easy to use and execute without any external DLLs. There are even many third-party programming languages as well. If you wanted to, you could create your own language from the .NET framework..NET Assemblies are the results of compiling a .NET language. Think of an EXE or DLL when you compile a C# program, these are .NET assemblies. These assemblies can be executed by ANY .NET language and can be loaded reflectively in memory using .NET’s Assembly.Load().  Remember these points moving forward in this paper.Offensive Tooling ShiftIf you follow the offensive tooling community, you may have noticed a shift in methods, where C# is now the go-to language over PowerShell. Many of the common PowerShell tools have been ported to the C#.PowerShell Tool -&gt; C# Tool  PowerUp -&gt; SharpUp  BloodHound -&gt; SharpHound  PowerView -&gt; SharpView  MimiKatz -&gt; SafetyKatzThe reason for this is best described in Marcello’s talks, but basically the reason is that all the recent defenses and detections we have seen around PowerShell target PowerShell itself. They do not target the underlying .NET framework. Since C# is another .NET language, and arguably the most commonly known, this became the new offensive language of choice.While there are new defenses such as AMSI updates coming to .NET 4.8, these are not present in prior .NET versions, which are running on most Windows hosts today.Slides from Marcello’s BSides Talk:Downsides to C#While C# can be a very powerful language, (and in theory can do anything PowerShell can do as it is built on the same framework), the largest downside is that to execute C# code, it must be compiled into an assembly, such as an EXE or DLL. This generally takes more time and must be re-compiled whenever a change is made. While these assemblies can be loaded reflectively into memory, many times, you may need to drop the file onto disk if this option is unavailable.While these features are not deal-breakers, they are simply not as easy as loading a remote PowerShell script into memory and executing.Bring Your Own InterpreterHow does BYOI come into all of this? Remember the point above that .NET assemblies can be executed by ANY .NET language? Because of this fact, any .NET language can be embedded in any other .NET language. There is no limit to how much embedding can be done. For example,  C# can be run in PowerShell  PowerShell can be run within IronPython  IronPython can be run within PowerShell within C#This is the idea that Bring Your Own Interpreter is built on. You can use a built-in Windows .NET language, such as C# or PowerShell to execute other .NET languages, and even in memory depending on the third-party language constraints.Boo!So, .NET languages can be embedded in each other, but which one do you choose? From an offensive perspective, we would want a language that can compile to memory and be able to support PInvoke, which is the ability to run unmanaged code (code not based in .NET, think importing non-.NET DLLs for example).With the current research on the topic, Boolang seems to be the best language found (so far) to suit these needs. Boolang was developed in 2009 by Rodrigo B. de Oliveira. It is built on the .NET framework and its syntax is inspired by Python. If you work with the code, it feels like a cross between C# and Python. It can import unmanaged code and compile everything to memory. This is ideal from an offensive perspective because as soon as the code runs, it is gone. No evidence is left on disk, and there is a very minimal amount of information left in memory.Making Your InterpreterNow we have the base knowledge and .NET language we want to use, let’s investigate how we embed the languages and make our interpreter.Download BoolangGo to the official GitHub page and download the latest release of the programming language. The reason we need to do this is because there are 4 DLLs that need to be imported into our C# code to compile and execute the Boolang code. These are:  Boo.Lang.dll  Boo.Lang.Parser.dll  Boo.Lang.Extensions.dll  Boo.Lang.Compiler.dllThese DLLs can be put on the host, imported dynamically from the C# code, or even packed into the final compiled executable.If you are interested, I encourage you to read the code documentation and learn how it runs independently of C#, but it will not be covered in the scope of this paper.Create the C# CompilerLet’s create a simple Boolang script. You can do this by opening your favorite text editor and creating a file named “script.boo” (or whatever you like).For the proof of concept, we will use the official Boolang Compiler API code to run Boolang from C#, with a few modifications to call our Main class and MainScript method.Alright, let’s run it.We have successfully embedded a .NET language in another, compiled it, and executed it in memory!Remote ScriptingYou may be thinking, this is cool, but now I must drop TWO files to disk. Well, let’s build on our code a little. We can use the WebClient class to get a remote URL and read in a remote script.Now we will host a remote script named “script” (the .boo extension isn’t necessary) at:http://pc-tech.pro/scriptLet’s run it.Now, we have a fully functioning assembly that we can execute on the target host and compile ANY remote script we want to memory and execute it. There are some great offensive implications to this:  Flexibility          No compiling needed every time you want to execute a script, just pull-down source code (like the PowerShell days)      Can run any script, using the same executable        OPSEC (Operations Security)          Since it is compiled to memory, no traces of the script are left on disc      Even in memory, it leaves a very minimal footprint as it is discarded after use      From an analysis perspective, you would only see a non-malicious C# compiler spinning up and executing, making a single network connection      Only need to drop one file to disk (unless you reflectively load it or use other techniques)      Bypasses AMSI in .NET &lt; 4.8 and other protections seen in PowerShell      Bypassing ProtectionsAs mentioned previously, BYOI tactics have the ability to bypass AMSI, but what does that mean? AMSI is the Windows Antimalware Scan Interface and allows applications and services to integrate with any antimalware product on the host. Some common windows components that integrate with AMSI are:  User Account Control, or UAC (elevation of EXE, COM, MSI, or ActiveX installation)  PowerShell (scripts, interactive use, and dynamic code evaluation)  Windows Script Host (wscript.exe and cscript.exe)  JavaScript and VBScript  Office VBA macrosBasically, anything that is executed in an AMSI integrated component will be ran through the host’s antivirus program. To demonstrate this, there is a certain test string that can trigger AMSI:Invoke-Expression ‘AMSI Test Sample: 7e72c3ce-861b-4339-8740-0ac1484c1386’In theory, anything that calls this string that is integrated with AMSI, should trigger a malware detection. We are going to create 2 scripts that call this string. One will be a PowerShell script; one will be an embedded Boolang script. Both will be hosted remotely. For all intents and purposes, they will do the same thing, which is printing the test string.PowerShellBoolangAs you can see, we have just executed our “malicious” Boolang script in memory, without getting caught by AMSI, while it was immediately caught in PowerShell.What About EDR?EDR is typically much more powerful than the built-in AV on Windows, so what does the execution look like in these tools? Again, we will just run our “Hello Boolang” script in memory from a remote source.The first thing we notice is an informational alert saying the file meets the lowest-confidence threshold for a malicious file. This may vary from EDR to EDR, as this alert was based on this specific EDR’s own built in detections and custom rules. Ideally, we would want no detection, but overall, not bad for the first try with no obfuscation.The following are the detection details from the process tree. As we can see, no files were quarantined, and no AV detections are present. Only network operations to our server and DLL loads were observed. Nothing from an analysis perspective that immediately sparks malicious actions.MimikatzLet’s try doing something that is actually malicious on the host through our Boolang interpreter. Breaking down the below Boolang script, we are going to load in the 32-bit or 64-bit SharpSploit Mimikatz DLL (depending on architecture) with only Base64 encoding. We will then execute it in memory and print the results of “privilege::debug sekurlsa::logonpasswords”.Specifically, this DLL (well known, definitely malicious):When we run it, we see that the EDR did in fact catch and terminate the program, but what did it actually detect?Looking at the alert, it triggered a High severity alert, ONLY because we touched LSASS. (No matter how stealthy a program is, it would get caught for touching LSASS in this way). It did not alert because we loaded the script or DLL into memory or executed Mimikatz itself. We can see below, the only detections on the actual executable was that it still met the lowest-confidence threshold for malicious files.When looking at the file details, we only see the same DLL loads and the network connections.Detections and MitigationsWhile there will likely be more detection in the future, there are not many great ways of detecting the actual execution of BYOI tradecraft currently. Below are a few points that could help in aiding detection/mitigation of this.  AMSI signatures for the third-party scripting languages. This is out of our control and we will have to see how Microsoft creates detections in AMSI for .NET 4.8. Likely, there will be work arounds until most edge cases are found. Similar to how the detections for PowerShell evolved  Detecting .NET scripting language assemblies being loaded in a managed processes’ AppDomain through technologies such as Event tracing for Windows  Application whitelisting to block unknown or unapproved files from being executed on the host  Focusing on TTPs (Tactics, Techniques, and Procedures) to catch the malicious behavior. For example, the EDR did not detect the file or the execution, but it did catch the act of touching LSASS.In ConclusionWith the increasing detections and alerting around tools such as PowerShell, Bring Your Own Interpreter style tradecraft as well as spin offs will likely become more prevalent in advanced attacks. Until more detections and controls are developed into the underlying techniques, it is important to have robust and up to date malware signatures (more so TTPs than hashes/IP IOCs), application white lists, and tools to add additional visibility such as EDR technology.">
+    <meta itemprop="datePublished" content="2020-10-15T00:00:00-04:00">
+    
+
+    <div class="page__inner-wrap">
+      
+        <header>
+          <h1 id="page-title" class="page__title" itemprop="headline">Bring Your Own Interpreter (BYOI)
+</h1>
+          
+            <p class="page__meta"><i class="far fa-clock" aria-hidden="true"></i> 
+
+
+
+
+  11 minute read
+
+</p>
+          
+        </header>
+      
+
+      <section class="page__content" itemprop="text">
+        
+        <h1 id="preface">Preface</h1>
+
+<p>These techniques that will be discussed in this paper were not discovered by myself. This technique was made popular by <a href="https://github.com/byt3bl33d3r">Marcello Salvati</a>, a red teamer at Black Hills Information Security. He published an article on the topic that can be found on the Black Hills <a href="https://www.blackhillsinfosec.com/red-teamers-cookbook-byoi-bring-your-own-interpreter/">blog</a>. SILENTTRINITY is his C2 (command and control) implementation of the concept. Be sure to check out his work.</p>
+
+<p>The purpose of this paper is to break down the concepts in a way that is (hopefully) easy to understand and increase awareness into the new offensive landscape when it comes to tooling and detection.</p>
+
+<h1 id="the-offensive-problem-set">The (Offensive) Problem Set</h1>
+
+<p>In the not so distant past, red teamers and malicious actors alike loved to utilize PowerShell for their offensive scripts, C2 channels, malware, basically everything. It was built into modern Windows operating systems by default, could pull down remote scripts, execute in memory, and was basically invisible due to lack of controls in place.</p>
+
+<p>In the last couple years, defensive products and Microsoft caught on to the abuse of this scripting language. After PowerShell v1, protections started being integrated such as <a href="https://docs.microsoft.com/en-us/powershell/module/microsoft.powershell.host/start-transcript?view=powershell-7">Transcript logging</a>, <a href="https://docs.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_script_blocks?view=powershell-7">Script Block Logging</a>, <a href="https://docs.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_group_policy_settings?view=powershell-7">Module Logging</a>, and <a href="https://docs.microsoft.com/en-us/windows/win32/amsi/antimalware-scan-interface-portal">AMSI</a>.</p>
+
+<p>Products such as EDRs started creating rules that looked for certain strings/commands, such as using “<em>IEX (New-Object Net.WebClient).DownloadString</em>” to download remote scripts or “exec bypass” to import custom scripts. Some environments block PowerShell altogether or alert anytime it is used.</p>
+
+<p>While PowerShell may not be completely “dead”, as there are always new bypasses, it has become more trouble than it is worth in most red team engagements (and likely advanced threat actor campaigns). It has become high risk from a stealth perspective with all the detections associated with it.</p>
+
+<h1 id="what-is-powershell-why-did-it-work-so-well">What is PowerShell? Why did it Work so Well?</h1>
+
+<p>PowerShell was built by Microsoft for task automation and configuration management, with its own scripting language. The reason it was able to be integrated into virtually all new Windows operating systems is that it is built upon the .NET Framework. The best/easiest explanation I could find for the .NET Framework can be found <a href="https://www.howtogeek.com/253588/what-is-the-microsoft-net-framework-and-why-is-it-installed-on-my-pc/">here</a>.</p>
+
+<p>The quick one sentence summary of this framework is that it is a shared library of code that contains Application Programming Interfaces (APIs) used to develop applications that can be used in programming languages.</p>
+
+<p>The important thing to note, is that the .NET Framework is not specific to any language. There are many different languages that utilize the framework to function. The .NET Framework is the backbone for many common Microsoft programming languages you may know, including (but certainly are not limited to):</p>
+
+<ul>
+  <li>C#</li>
+  <li>F#</li>
+  <li>Visual Basic</li>
+  <li>PowerShell</li>
+  <li>IronPython</li>
+  <li>IronRuby</li>
+</ul>
+
+<p>PowerShell and C# are built into Windows by default, so it makes them very easy to use and execute without any external DLLs. There are even many third-party programming languages as well. If you wanted to, you could create your own language from the .NET framework.</p>
+
+<p>.NET Assemblies are the results of compiling a .NET language. Think of an EXE or DLL when you compile a C# program, these are .NET assemblies. These assemblies can be executed by ANY .NET language and can be loaded reflectively in memory using .NET’s <a href="https://docs.microsoft.com/en-us/dotnet/api/system.reflection.assembly.load?view=netcore-3.1">Assembly.Load()</a>.  Remember these points moving forward in this paper.</p>
+
+<h1 id="offensive-tooling-shift">Offensive Tooling Shift</h1>
+
+<p>If you follow the offensive tooling community, you may have noticed a shift in methods, where C# is now the go-to language over PowerShell. Many of the common PowerShell tools have been ported to the C#.</p>
+
+<p><ins><strong>PowerShell Tool -&gt; C# Tool</strong></ins></p>
+
+<ul>
+  <li>PowerUp -&gt; SharpUp</li>
+  <li>BloodHound -&gt; SharpHound</li>
+  <li>PowerView -&gt; SharpView</li>
+  <li>MimiKatz -&gt; SafetyKatz</li>
+</ul>
+
+<p>The reason for this is best described in Marcello’s <a href="https://www.youtube.com/watch?v=o6m6_TncrcI&amp;feature=emb_logo">talks</a>, but basically the reason is that all the recent defenses and detections we have seen around PowerShell target <strong>PowerShell itself</strong>. They do not target the underlying .NET framework. Since C# is another .NET language, and arguably the most commonly known, this became the new offensive language of choice.</p>
+
+<p>While there are new defenses such as AMSI updates coming to .NET 4.8, these are not present in prior .NET versions, which are running on most Windows hosts today.</p>
+
+<p>Slides from Marcello’s BSides Talk:</p>
+
+<p><img src="/images/BYOI/languages.png" alt="image-center" class="align-center" /></p>
+
+<h1 id="downsides-to-c">Downsides to C#</h1>
+
+<p>While C# can be a very powerful language, (and in theory can do anything PowerShell can do as it is built on the same framework), the largest downside is that to execute C# code, it must be compiled into an assembly, such as an EXE or DLL. This generally takes more time and must be re-compiled whenever a change is made. While these assemblies can be loaded reflectively into memory, many times, you may need to drop the file onto disk if this option is unavailable.</p>
+
+<p>While these features are not deal-breakers, they are simply not as easy as loading a remote PowerShell script into memory and executing.</p>
+
+<h1 id="bring-your-own-interpreter">Bring Your Own Interpreter</h1>
+
+<p>How does BYOI come into all of this? Remember the point above that .NET assemblies can be executed by <strong><em>ANY</em></strong> .NET language? Because of this fact, any .NET language can be embedded in any other .NET language. There is no limit to how much embedding can be done. 
+For example,</p>
+
+<ul>
+  <li>C# can be run in PowerShell</li>
+  <li>PowerShell can be run within IronPython</li>
+  <li>IronPython can be run within PowerShell within C#</li>
+</ul>
+
+<p>This is the idea that <strong><em>Bring Your Own Interpreter</em></strong> is built on. You can use a built-in Windows .NET language, such as C# or PowerShell to execute other .NET languages, and even in memory depending on the third-party language constraints.</p>
+
+<h1 id="boo">Boo!</h1>
+
+<p>So, .NET languages can be embedded in each other, but which one do you choose? From an offensive perspective, we would want a language that can compile to memory and be able to support <a href="https://docs.microsoft.com/en-us/dotnet/standard/native-interop/pinvoke">PInvoke</a>, which is the ability to run unmanaged code (code not based in .NET, think importing non-.NET DLLs for example).</p>
+
+<p>With the current research on the topic, <a href="https://github.com/boo-lang/boo">Boolang</a> seems to be the best language found (so far) to suit these needs. Boolang was developed in 2009 by Rodrigo B. de Oliveira. It is built on the .NET framework and its syntax is inspired by Python. If you work with the code, it feels like a cross between C# and Python. It can import unmanaged code and compile everything to memory. This is ideal from an offensive perspective because as soon as the code runs, it is gone. No evidence is left on disk, and there is a very minimal amount of information left in memory.</p>
+
+<h1 id="making-your-interpreter">Making Your Interpreter</h1>
+
+<p>Now we have the base knowledge and .NET language we want to use, let’s investigate how we embed the languages and make our interpreter.</p>
+
+<h2 id="download-boolang">Download Boolang</h2>
+
+<p>Go to the official <a href="https://github.com/boo-lang/boo/releases">GitHub page</a> and download the latest release of the programming language. The reason we need to do this is because there are 4 DLLs that need to be imported into our C# code to compile and execute the Boolang code. These are:</p>
+
+<ul>
+  <li>Boo.Lang.dll</li>
+  <li>Boo.Lang.Parser.dll</li>
+  <li>Boo.Lang.Extensions.dll</li>
+  <li>Boo.Lang.Compiler.dll</li>
+</ul>
+
+<p>These DLLs can be put on the host, imported dynamically from the C# code, or even packed into the final compiled executable.</p>
+
+<p>If you are interested, I encourage you to read the code documentation and learn how it runs independently of C#, but it will not be covered in the scope of this paper.</p>
+
+<h1 id="create-the-c-compiler">Create the C# Compiler</h1>
+
+<p>Let’s create a simple Boolang script. You can do this by opening your favorite text editor and creating a file named “<em>script.boo</em>” (or whatever you like).</p>
+
+<p><img src="/images/BYOI/scriptboo.png" alt="image-center" class="align-center" /></p>
+
+<p>For the proof of concept, we will use the official Boolang Compiler <a href="https://github.com/boo-lang/boo/wiki/Scripting-with-the-Boo.Lang.Compiler-API">API code</a> to run Boolang from C#, with a few modifications to call our Main class and <em>MainScript</em> method.</p>
+
+<p><img src="/images/BYOI/script-code.png" alt="image-center" class="align-center" /></p>
+
+<p>Alright, let’s run it.</p>
+
+<p><img src="/images/BYOI/runboo.png" alt="image-center" class="align-center" /></p>
+
+<p>We have successfully embedded a .NET language in another, compiled it, and executed it in memory!</p>
+
+<h1 id="remote-scripting">Remote Scripting</h1>
+
+<p>You may be thinking, this is cool, but now I must drop TWO files to disk. Well, let’s build on our code a little. We can use the <em>WebClient</em> class to get a remote URL and read in a remote script.</p>
+
+<p><img src="/images/BYOI/remote-code.png" alt="image-center" class="align-center" /></p>
+
+<p>Now we will host a remote script named “script” (the .boo extension isn’t necessary) at:</p>
+
+<p><strong><em>http://pc-tech.pro/script</em></strong></p>
+
+<p><img src="/images/BYOI/pctech-script.png" alt="image-center" class="align-center" /></p>
+
+<p>Let’s run it.</p>
+
+<p><img src="/images/BYOI/run-remote-boo.png" alt="image-center" class="align-center" /></p>
+
+<p>Now, we have a fully functioning assembly that we can execute on the target host and compile ANY remote script we want to memory and execute it. There are some great offensive implications to this:</p>
+
+<ul>
+  <li>Flexibility
+    <ul>
+      <li>No compiling needed every time you want to execute a script, just pull-down source code (like the PowerShell days)</li>
+      <li>Can run any script, using the same executable</li>
+    </ul>
+  </li>
+  <li>OPSEC (Operations Security)
+    <ul>
+      <li>Since it is compiled to memory, no traces of the script are left on disc</li>
+      <li>Even in memory, it leaves a very minimal footprint as it is discarded after use</li>
+      <li>From an analysis perspective, you would only see a non-malicious C# compiler spinning up and executing, making a single network connection</li>
+      <li>Only need to drop one file to disk (unless you reflectively load it or use other techniques)</li>
+      <li>Bypasses AMSI in .NET &lt; 4.8 and other protections seen in PowerShell</li>
+    </ul>
+  </li>
+</ul>
+
+<h1 id="bypassing-protections">Bypassing Protections</h1>
+
+<p>As mentioned previously, BYOI tactics have the ability to bypass AMSI, but what does that mean? <a href="https://docs.microsoft.com/en-us/windows/win32/amsi/antimalware-scan-interface-portal">AMSI</a> is the Windows Antimalware Scan Interface and allows applications and services to integrate with any antimalware product on the host. Some common windows components that integrate with AMSI are:</p>
+
+<ul>
+  <li>User Account Control, or UAC (elevation of EXE, COM, MSI, or ActiveX installation)</li>
+  <li>PowerShell (scripts, interactive use, and dynamic code evaluation)</li>
+  <li>Windows Script Host (wscript.exe and cscript.exe)</li>
+  <li>JavaScript and VBScript</li>
+  <li>Office VBA macros</li>
+</ul>
+
+<p>Basically, anything that is executed in an AMSI integrated component will be ran through the host’s antivirus program. To demonstrate this, there is a certain test string that can trigger AMSI:</p>
+
+<p><em>Invoke-Expression ‘AMSI Test Sample: 7e72c3ce-861b-4339-8740-0ac1484c1386’</em></p>
+
+<p><img src="/images/BYOI/amsi1.png" alt="image-center" class="align-center" /></p>
+
+<p>In theory, anything that calls this string that is integrated with AMSI, should trigger a malware detection. We are going to create 2 scripts that call this string. One will be a PowerShell script; one will be an embedded Boolang script. Both will be hosted remotely. For all intents and purposes, they will do the same thing, which is printing the test string.</p>
+
+<h1 id="powershell">PowerShell</h1>
+
+<p><img src="/images/BYOI/amsi2.png" alt="image-center" class="align-center" /></p>
+
+<p><img src="/images/BYOI/amsi3.png" alt="image-center" class="align-center" /></p>
+
+<h1 id="boolang">Boolang</h1>
+
+<p><img src="/images/BYOI/amsi4.png" alt="image-center" class="align-center" /></p>
+
+<p><img src="/images/BYOI/amsi5.png" alt="image-center" class="align-center" /></p>
+
+<p>As you can see, we have just executed our “malicious” Boolang script in memory, without getting caught by AMSI, while it was immediately caught in PowerShell.</p>
+
+<h1 id="what-about-edr">What About EDR?</h1>
+
+<p>EDR is typically much more powerful than the built-in AV on Windows, so what does the execution look like in these tools? Again, we will just run our “Hello Boolang” script in memory from a remote source.</p>
+
+<p>The first thing we notice is an informational alert saying the file meets the <strong>lowest-confidence</strong> threshold for a malicious file. This may vary from EDR to EDR, as this alert was based on this specific EDR’s own built in detections and custom rules. Ideally, we would want no detection, but overall, not bad for the first try with no obfuscation.</p>
+
+<p><img src="/images/BYOI/edr1.png" alt="image-center" class="align-center" /></p>
+
+<p><img src="/images/BYOI/edr2.png" alt="image-center" class="align-center" /></p>
+
+<p>The following are the detection details from the process tree. As we can see, no files were quarantined, and no AV detections are present. Only network operations to our server and DLL loads were observed. Nothing from an analysis perspective that immediately sparks malicious actions.</p>
+
+<p><img src="/images/BYOI/edr3.png" alt="image-center" class="align-center" /></p>
+
+<p><img src="/images/BYOI/edr4.png" alt="image-center" class="align-center" /></p>
+
+<p><img src="/images/BYOI/edr5.png" alt="image-center" class="align-center" /></p>
+
+<h1 id="mimikatz">Mimikatz</h1>
+
+<p>Let’s try doing something that is actually malicious on the host through our Boolang interpreter. Breaking down the below Boolang script, we are going to load in the 32-bit or 64-bit SharpSploit Mimikatz DLL (depending on architecture) with only Base64 encoding. We will then execute it in memory and print the results of “<em>privilege::debug sekurlsa::logonpasswords</em>”.</p>
+
+<p>Specifically, this DLL (well known, definitely malicious):</p>
+
+<p><img src="/images/BYOI/virustotal.png" alt="image-center" class="align-center" /></p>
+
+<p><img src="/images/BYOI/vscode.png" alt="image-center" class="align-center" /></p>
+
+<p>When we run it, we see that the EDR did in fact catch and terminate the program, but what did it actually detect?</p>
+
+<p><img src="/images/BYOI/edr6.png" alt="image-center" class="align-center" /></p>
+
+<p>Looking at the alert, it triggered a High severity alert, <strong>ONLY</strong> because we touched LSASS. (No matter how stealthy a program is, it would get caught for touching LSASS in this way). It did not alert because we loaded the script or DLL into memory or executed Mimikatz itself. We can see below, the only detections on the actual executable was that it still met the lowest-confidence threshold for malicious files.</p>
+
+<p><img src="/images/BYOI/edr7.png" alt="image-center" class="align-center" /></p>
+
+<p>When looking at the file details, we only see the same DLL loads and the network connections.</p>
+
+<p><img src="/images/BYOI/edr8.png" alt="image-center" class="align-center" /></p>
+
+<p><img src="/images/BYOI/edr9.png" alt="image-center" class="align-center" /></p>
+
+<h1 id="detections-and-mitigations">Detections and Mitigations</h1>
+
+<p>While there will likely be more detection in the future, there are not many great ways of detecting the actual execution of BYOI tradecraft currently. Below are a few points that could help in aiding detection/mitigation of this.</p>
+
+<ul>
+  <li>AMSI signatures for the third-party scripting languages. This is out of our control and we will have to see how Microsoft creates detections in AMSI for .NET 4.8. Likely, there will be work arounds until most edge cases are found. Similar to how the detections for PowerShell evolved</li>
+  <li>Detecting .NET scripting language assemblies being loaded in a managed processes’ AppDomain through technologies such as Event tracing for Windows</li>
+  <li>Application whitelisting to block unknown or unapproved files from being executed on the host</li>
+  <li>Focusing on TTPs (Tactics, Techniques, and Procedures) to catch the malicious behavior. For example, the EDR did not detect the file or the execution, but it did catch the act of touching LSASS.</li>
+</ul>
+
+<h1 id="in-conclusion">In Conclusion</h1>
+
+<p>With the increasing detections and alerting around tools such as PowerShell, Bring Your Own Interpreter style tradecraft as well as spin offs will likely become more prevalent in advanced attacks. Until more detections and controls are developed into the underlying techniques, it is important to have robust and up to date malware signatures (more so TTPs than hashes/IP IOCs), application white lists, and tools to add additional visibility such as EDR technology.</p>
+
+        
+      </section>
+
+      <footer class="page__meta">
+        
+        
+
+
+        
+          <p class="page__date"><strong><i class="fas fa-fw fa-calendar-alt" aria-hidden="true"></i> Updated:</strong> <time datetime="2020-10-15T00:00:00-04:00">October 15, 2020</time></p>
+        
+      </footer>
+
+      <section class="page__share">
+  
+    <h4 class="page__share-title">Share on</h4>
+  
+
+  <a href="https://twitter.com/intent/tweet?text=Bring+Your+Own+Interpreter+%28BYOI%29%20http%3A%2F%2Flocalhost%3A4000%2FBring-Your-Own-Interpreter%2F" class="btn btn--twitter" onclick="window.open(this.href, 'window', 'left=20,top=20,width=500,height=500,toolbar=1,resizable=0'); return false;" title="Share on Twitter"><i class="fab fa-fw fa-twitter" aria-hidden="true"></i><span> Twitter</span></a>
+
+  <a href="https://www.facebook.com/sharer/sharer.php?u=http%3A%2F%2Flocalhost%3A4000%2FBring-Your-Own-Interpreter%2F" class="btn btn--facebook" onclick="window.open(this.href, 'window', 'left=20,top=20,width=500,height=500,toolbar=1,resizable=0'); return false;" title="Share on Facebook"><i class="fab fa-fw fa-facebook" aria-hidden="true"></i><span> Facebook</span></a>
+
+  <a href="https://www.linkedin.com/shareArticle?mini=true&url=http%3A%2F%2Flocalhost%3A4000%2FBring-Your-Own-Interpreter%2F" class="btn btn--linkedin" onclick="window.open(this.href, 'window', 'left=20,top=20,width=500,height=500,toolbar=1,resizable=0'); return false;" title="Share on LinkedIn"><i class="fab fa-fw fa-linkedin" aria-hidden="true"></i><span> LinkedIn</span></a>
+</section>
+
+
+      
+  <nav class="pagination">
+    
+      <a href="/Tunneling-Traffic-With-SSL-and-TLS/" class="pagination--pager" title="SSL/TLS Tunneling to Bypass Filters &amp; Avoid Detection
+">Previous</a>
+    
+    
+      <a href="/Blinding-EDR-On-Windows/" class="pagination--pager" title="Blinding EDR On Windows
+">Next</a>
+    
+  </nav>
+
+    </div>
+
+    
+  </article>
+
+  
+  
+    <div class="page__related">
+      <h4 class="page__related-title">You may also enjoy</h4>
+      <div class="grid__wrapper">
+        
+          
+
+
+
+<div class="grid__item">
+  <article class="archive__item" itemscope itemtype="https://schema.org/CreativeWork">
+    
+    <h2 class="archive__item-title" itemprop="headline">
+      
+        <a href="/Blinding-EDR-On-Windows/" rel="permalink">Blinding EDR On Windows
+</a>
+      
+    </h2>
+    
+      <p class="page__meta"><i class="far fa-clock" aria-hidden="true"></i> 
+
+
+
+
+  23 minute read
+
+</p>
+    
+    <p class="archive__item-excerpt" itemprop="description">Acknowledgements
+
+My understanding of EDRs would not be possible without the help of many great security researchers. Below are some write-ups and talks that...</p>
+  </article>
+</div>
+
+        
+          
+
+
+
+<div class="grid__item">
+  <article class="archive__item" itemscope itemtype="https://schema.org/CreativeWork">
+    
+    <h2 class="archive__item-title" itemprop="headline">
+      
+        <a href="/Tunneling-Traffic-With-SSL-and-TLS/" rel="permalink">SSL/TLS Tunneling to Bypass Filters &amp; Avoid Detection
+</a>
+      
+    </h2>
+    
+      <p class="page__meta"><i class="far fa-clock" aria-hidden="true"></i> 
+
+
+
+
+  6 minute read
+
+</p>
+    
+    <p class="archive__item-excerpt" itemprop="description">In certain environments, controls such as firewalls are in place that restrict outbound ports and protocols. For example, maybe only web traffic over ports 8...</p>
+  </article>
+</div>
+
+        
+          
+
+
+
+<div class="grid__item">
+  <article class="archive__item" itemscope itemtype="https://schema.org/CreativeWork">
+    
+    <h2 class="archive__item-title" itemprop="headline">
+      
+        <a href="/C2-Redirection-for-Offensive-Operations/" rel="permalink">C2 Redirection For Offensive Operations
+</a>
+      
+    </h2>
+    
+      <p class="page__meta"><i class="far fa-clock" aria-hidden="true"></i> 
+
+
+
+
+  3 minute read
+
+</p>
+    
+    <p class="archive__item-excerpt" itemprop="description">When creating a command-and-control infrastructure, it is common for the callbacks to not communicate directly to the attacker’s C2 server. Many times, they ...</p>
+  </article>
+</div>
+
+        
+          
+
+
+
+<div class="grid__item">
+  <article class="archive__item" itemscope itemtype="https://schema.org/CreativeWork">
+    
+    <h2 class="archive__item-title" itemprop="headline">
+      
+        <a href="/OAuth-Token-Stealing/" rel="permalink">Oauth Token Stealing
+</a>
+      
+    </h2>
+    
+      <p class="page__meta"><i class="far fa-clock" aria-hidden="true"></i> 
+
+
+
+
+  12 minute read
+
+</p>
+    
+    <p class="archive__item-excerpt" itemprop="description">Preface
+
+</p>
+  </article>
+</div>
+
+        
+      </div>
+    </div>
+  
+  
+</div>
+
+    </div>
+
+    
+
+    <div id="footer" class="page__footer">
+      <footer>
+        <!-- start custom footer snippets -->
+
+<!-- end custom footer snippets -->
+        <div class="page__footer-follow">
+  <ul class="social-icons">
+    
+      <li><strong>Follow:</strong></li>
+    
+
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+
+    <li><a href="/feed.xml"><i class="fas fa-fw fa-rss-square" aria-hidden="true"></i> Feed</a></li>
+  </ul>
+</div>
+
+<div class="page__footer-copyright">&copy; 2020 Zach Stein. Powered by <a href="https://jekyllrb.com" rel="nofollow">Jekyll</a> &amp; <a href="https://mademistakes.com/work/minimal-mistakes-jekyll-theme/" rel="nofollow">Minimal Mistakes</a>.</div>
+
+      </footer>
+    </div>
+
+    
+  <script src="/assets/js/main.min.js"></script>
+  <script src="https://kit.fontawesome.com/4eee35f757.js"></script>
+
+
+
+
+
+
+
+
+
+
+  </body>
+</html>

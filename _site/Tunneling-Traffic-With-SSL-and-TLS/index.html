@@ -1,0 +1,712 @@
+<!doctype html>
+<!--
+  Minimal Mistakes Jekyll Theme 4.19.2 by Michael Rose
+  Copyright 2013-2019 Michael Rose - mademistakes.com | @mmistakes
+  Free for personal and commercial use under the MIT license
+  https://github.com/mmistakes/minimal-mistakes/blob/master/LICENSE
+-->
+<html lang="en" class="no-js">
+  <head>
+    <meta charset="utf-8">
+
+<!-- begin _includes/seo.html --><title>SSL/TLS Tunneling to Bypass Filters &amp; Avoid Detection - Red Team Blog</title>
+<meta name="description" content="In certain environments, controls such as firewalls are in place that restrict outbound ports and protocols. For example, maybe only web traffic over ports 80 (HTTP) and 443 (HTTPS) are allowed outbound from a given workstation.  In campaigns I have performed, I have had scenarios where we needed to control a device remotely (such as a raspberry pi) where direct terminal access would be ideal (such as SSH). But this requires an established external connection, where there are a few issues to consider:     Outbound SSH over port 22 may be blocked   Outbound SSH traffic over a non-standard port (22) may be blocked   Even if neither of the above is blocked, anomalous outbound SSH traffic on any port is suspicious and may trigger alerts and/or attract unwanted attention from a threat hunter or analyst   What is a solution to this? Tunneling!  As an attacker we always want to make any inbound/outbound traffic look as normal as possible to ensure the operational security of our campaign. As the most common outbound traffic is likely web traffic, lets emulate this. There are a few tools we can use to make this happen. Best part is they are free and open source.  Socat  The first step in emulating web traffic, is making our communication speak the same protocol as the normal traffic. HTTPS traffic (encrypted HTTP) uses SSL/TLS (Secure Socket Layer/ Transport Layer Security) encryption to ensure that all communication between the web browser and the web server are safe from a third party seeing what is being transferred. Any website where you see the lock icon next to the URL is using such encryption to protect your data. TLS is the preferred method, as TLS is an updated more secure version of SSL.  How does this benefit an attacker? Since these protocols encrypt the traffic within them, if we can use SSL/TLS to encapsulate SSH traffic, the SSH traffic would be shielded from detection (unless there is a security device in the middle that can decrypt the SSL/TLS traffic).  This is where Socat comes into play. Socat is a tool that is used to transfer data between two addresses using a desired protocol. Since we want to communicate with our C2 server using TLS, we can create this transfer pipe using OpenSSL. For our demonstration, we will use our ‘pc-tech.pro’ domain for C2 (Ubuntu server hosted in Amazon AWS).  1) Install Socat on implanted/rogue device (Sudo apt install socat)    2) Modify our SSH config file for our user to use ProxyCommand to establish a tunnel using OpenSSL to our C2 domain using port 443.    What this configuration does, is that for any SSH connection to ‘pc-tech.pro’ socat will be used to create a TLS tunnel using the site’s certificates for the SSH traffic to be encapsulated in.  Stunnel  Now that we have a means of encapsulating SSH traffic to our C2 server, we need something to receive and decrypt the traffic. For this, we will use the tool Stunnel. In short, Stunnel is a tool designed to add TLS encryption to applications that do not speak the protocols natively. In our case, it will be used to host the TLS certificates used for our encapsulation, decode incoming traffic, and forward the traffic to another port.  1) The first step in our configuration is to install the software on the C2 server: (Sudo apt install stunnel4)    2) Set up the configuration file (/etc/stunnel/stunnel.conf): *This will need to be created as it does not exist by default*    Breaking this down by line:     Set pid for the process   Add TLS certificate   Add TLS key   Define rules for specified traffic type (SSH for us)            Listen on all interfaces on port 443 (HTTPS)       Forward &amp; decrypt all incoming SSH traffic to port 443 to a port of your choice (2222 for us)           For our TLS certificates, we used Let’s Encrypt certificates that can be used for webpages. Setting these up are outside the scope of this paper, but you can read more about this on their website.  3) Enable Stunnel in config (/etc/default/stunnel4):  *By default, the service is not enabled. To enable it change “Enabled=0” to “Enabled=1”*    4) Start service: (Sudo service stunnel start)  The following diagram is a visual of the steps we have taken so far:    You may be asking, “Why are we forwarding traffic to port 2222 instead of standard SSH (port 22)?”  This is because we are going to be hosting 3 services off this one port. SSH, HTTP, and HTTPS. This way, if we visit port 443 with a web browser, it will display a webpage to the user, while if we hit port 443 with SSH traffic, it will establish an SSH tunnel. This is done to avoid detection from an analyst and/or sandbox.This is where we get into our final tool, SSLH.  SSLH  SSLH is a “SSL/SSH Multiplexer” that acts like a switchboard for protocols it receives. It can be configured with any protocol that can be recognized with regular expressions. Simply put, depending on what traffic it receives, it will forward the traffic to a different port, based on the protocol. For our example, the following routes will be created.     If SSLH receives SSH traffic, forward to port 22   If SSLH receives HTTP traffic, forward to port 8080   If SSLH receives HTTPS traffic, forward to port 8443   To configure our server to use this tool, we will take the following steps:  1)	Install the tool on our C2 server: (Sudo apt install sslh)    2)	Edit the configuration file in /etc/default/sslh:    Breaking this down:    Ensure “RUN” is set to “yes”   Set “—listen” to the port we are forwarding Stunnel traffic to (port 2222). This is the port SSLH will be running on   For SSH traffic, forward to localhost, port 22   For SSL/TLS traffic, forward to localhost, port 8443   For HTTP traffic, forward to localhost, port 8080   3)	Start the service: (Sudo service sslh start)  Now the only thing we need to do to complete our tunneling infrastructure is to set up our SSH and web services.  Configuring Web Service and SSH  To serve web content to browsers, we will use an Apache web service on our C2 server (although any webserver will do).  1)	In your desired web server port configuration, point HTTP and HTTPS to the ports configured in SSLH.    2)	Start Web Server  For SSH, we will use the standard SSH service (Sudo service ssh start)  Now, if everything worked correctly, we should see all our ports listening accordingly:    Testing the Configuration  The following diagram is a visual of what the final configuration should look like. All return traffic in will be encapsulated in the TLS tunnel as well.    Web Traffic  When visiting the site in a browser, we see a normal looking website that can host any content we desire:    Wireshark Capture:      SSH Traffic  When we SSH to port 443 of the server, the socat OpenSSL tunnel is created, and we can SSH over the same port our web traffic hit above (the -p443 is not needed as it is in our socat config, just used to explicitly show the port we are connecting to):        In both cases, the traffic looks like TLS encrypted web traffic.  Optimizing for Offensive Operations  Now that we have proven we can tunnel SSH traffic over TLS, we need to be able to access our implanted device at any time, from anywhere. To take it one step further, we will set up a reverse SSH tunnel to our C2 server, which we can access from our own device.  Host “Oasis” will simulate our rogue device. We will set up a reverse tunnel to our C2 server using SSH.  What the below command does, is open port 7777 on our C2 server to tunnel all traffic destined to port 7777 to the SSH port on the rogue device. All of this is encapsulated in our TLS tunnel.    Looking at the listening ports on our C2 server, we can see that this port is in-fact listening.    Now from our attacking machine, we can SSH to our C2 server, then SSH to our rogue device.      The following is a diagram of what this traffic looks like, using the C2 server as a jump box into the target environment. This allows us to have terminal access to the host, while masquerading as HTTPS traffic to a normal website.    ">
+
+
+  <meta name="author" content="Zach Stein">
+
+
+<meta property="og:type" content="article">
+<meta property="og:locale" content="en_US">
+<meta property="og:site_name" content="Red Team Blog">
+<meta property="og:title" content="SSL/TLS Tunneling to Bypass Filters &amp; Avoid Detection">
+<meta property="og:url" content="http://localhost:4000/Tunneling-Traffic-With-SSL-and-TLS/">
+
+
+  <meta property="og:description" content="In certain environments, controls such as firewalls are in place that restrict outbound ports and protocols. For example, maybe only web traffic over ports 80 (HTTP) and 443 (HTTPS) are allowed outbound from a given workstation.  In campaigns I have performed, I have had scenarios where we needed to control a device remotely (such as a raspberry pi) where direct terminal access would be ideal (such as SSH). But this requires an established external connection, where there are a few issues to consider:     Outbound SSH over port 22 may be blocked   Outbound SSH traffic over a non-standard port (22) may be blocked   Even if neither of the above is blocked, anomalous outbound SSH traffic on any port is suspicious and may trigger alerts and/or attract unwanted attention from a threat hunter or analyst   What is a solution to this? Tunneling!  As an attacker we always want to make any inbound/outbound traffic look as normal as possible to ensure the operational security of our campaign. As the most common outbound traffic is likely web traffic, lets emulate this. There are a few tools we can use to make this happen. Best part is they are free and open source.  Socat  The first step in emulating web traffic, is making our communication speak the same protocol as the normal traffic. HTTPS traffic (encrypted HTTP) uses SSL/TLS (Secure Socket Layer/ Transport Layer Security) encryption to ensure that all communication between the web browser and the web server are safe from a third party seeing what is being transferred. Any website where you see the lock icon next to the URL is using such encryption to protect your data. TLS is the preferred method, as TLS is an updated more secure version of SSL.  How does this benefit an attacker? Since these protocols encrypt the traffic within them, if we can use SSL/TLS to encapsulate SSH traffic, the SSH traffic would be shielded from detection (unless there is a security device in the middle that can decrypt the SSL/TLS traffic).  This is where Socat comes into play. Socat is a tool that is used to transfer data between two addresses using a desired protocol. Since we want to communicate with our C2 server using TLS, we can create this transfer pipe using OpenSSL. For our demonstration, we will use our ‘pc-tech.pro’ domain for C2 (Ubuntu server hosted in Amazon AWS).  1) Install Socat on implanted/rogue device (Sudo apt install socat)    2) Modify our SSH config file for our user to use ProxyCommand to establish a tunnel using OpenSSL to our C2 domain using port 443.    What this configuration does, is that for any SSH connection to ‘pc-tech.pro’ socat will be used to create a TLS tunnel using the site’s certificates for the SSH traffic to be encapsulated in.  Stunnel  Now that we have a means of encapsulating SSH traffic to our C2 server, we need something to receive and decrypt the traffic. For this, we will use the tool Stunnel. In short, Stunnel is a tool designed to add TLS encryption to applications that do not speak the protocols natively. In our case, it will be used to host the TLS certificates used for our encapsulation, decode incoming traffic, and forward the traffic to another port.  1) The first step in our configuration is to install the software on the C2 server: (Sudo apt install stunnel4)    2) Set up the configuration file (/etc/stunnel/stunnel.conf): *This will need to be created as it does not exist by default*    Breaking this down by line:     Set pid for the process   Add TLS certificate   Add TLS key   Define rules for specified traffic type (SSH for us)            Listen on all interfaces on port 443 (HTTPS)       Forward &amp; decrypt all incoming SSH traffic to port 443 to a port of your choice (2222 for us)           For our TLS certificates, we used Let’s Encrypt certificates that can be used for webpages. Setting these up are outside the scope of this paper, but you can read more about this on their website.  3) Enable Stunnel in config (/etc/default/stunnel4):  *By default, the service is not enabled. To enable it change “Enabled=0” to “Enabled=1”*    4) Start service: (Sudo service stunnel start)  The following diagram is a visual of the steps we have taken so far:    You may be asking, “Why are we forwarding traffic to port 2222 instead of standard SSH (port 22)?”  This is because we are going to be hosting 3 services off this one port. SSH, HTTP, and HTTPS. This way, if we visit port 443 with a web browser, it will display a webpage to the user, while if we hit port 443 with SSH traffic, it will establish an SSH tunnel. This is done to avoid detection from an analyst and/or sandbox.This is where we get into our final tool, SSLH.  SSLH  SSLH is a “SSL/SSH Multiplexer” that acts like a switchboard for protocols it receives. It can be configured with any protocol that can be recognized with regular expressions. Simply put, depending on what traffic it receives, it will forward the traffic to a different port, based on the protocol. For our example, the following routes will be created.     If SSLH receives SSH traffic, forward to port 22   If SSLH receives HTTP traffic, forward to port 8080   If SSLH receives HTTPS traffic, forward to port 8443   To configure our server to use this tool, we will take the following steps:  1)	Install the tool on our C2 server: (Sudo apt install sslh)    2)	Edit the configuration file in /etc/default/sslh:    Breaking this down:    Ensure “RUN” is set to “yes”   Set “—listen” to the port we are forwarding Stunnel traffic to (port 2222). This is the port SSLH will be running on   For SSH traffic, forward to localhost, port 22   For SSL/TLS traffic, forward to localhost, port 8443   For HTTP traffic, forward to localhost, port 8080   3)	Start the service: (Sudo service sslh start)  Now the only thing we need to do to complete our tunneling infrastructure is to set up our SSH and web services.  Configuring Web Service and SSH  To serve web content to browsers, we will use an Apache web service on our C2 server (although any webserver will do).  1)	In your desired web server port configuration, point HTTP and HTTPS to the ports configured in SSLH.    2)	Start Web Server  For SSH, we will use the standard SSH service (Sudo service ssh start)  Now, if everything worked correctly, we should see all our ports listening accordingly:    Testing the Configuration  The following diagram is a visual of what the final configuration should look like. All return traffic in will be encapsulated in the TLS tunnel as well.    Web Traffic  When visiting the site in a browser, we see a normal looking website that can host any content we desire:    Wireshark Capture:      SSH Traffic  When we SSH to port 443 of the server, the socat OpenSSL tunnel is created, and we can SSH over the same port our web traffic hit above (the -p443 is not needed as it is in our socat config, just used to explicitly show the port we are connecting to):        In both cases, the traffic looks like TLS encrypted web traffic.  Optimizing for Offensive Operations  Now that we have proven we can tunnel SSH traffic over TLS, we need to be able to access our implanted device at any time, from anywhere. To take it one step further, we will set up a reverse SSH tunnel to our C2 server, which we can access from our own device.  Host “Oasis” will simulate our rogue device. We will set up a reverse tunnel to our C2 server using SSH.  What the below command does, is open port 7777 on our C2 server to tunnel all traffic destined to port 7777 to the SSH port on the rogue device. All of this is encapsulated in our TLS tunnel.    Looking at the listening ports on our C2 server, we can see that this port is in-fact listening.    Now from our attacking machine, we can SSH to our C2 server, then SSH to our rogue device.      The following is a diagram of what this traffic looks like, using the C2 server as a jump box into the target environment. This allows us to have terminal access to the host, while masquerading as HTTPS traffic to a normal website.    ">
+
+
+
+
+
+
+
+  <meta property="article:published_time" content="2020-10-14T00:00:00-04:00">
+
+
+
+
+
+  
+
+  
+
+
+<link rel="canonical" href="http://localhost:4000/Tunneling-Traffic-With-SSL-and-TLS/">
+
+
+
+
+<script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    
+      "@type": "Person",
+      "name": "Zach Stein",
+      "url": "http://localhost:4000/"
+    
+  }
+</script>
+
+
+
+
+
+
+<!-- end _includes/seo.html -->
+
+
+<link href="/feed.xml" type="application/atom+xml" rel="alternate" title="Red Team Blog Feed">
+
+<!-- https://t.co/dKP3o1e -->
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<script>
+  document.documentElement.className = document.documentElement.className.replace(/\bno-js\b/g, '') + ' js ';
+</script>
+
+<!-- For all browsers -->
+<link rel="stylesheet" href="/assets/css/main.css">
+
+<!--[if IE]>
+  <style>
+    /* old IE unsupported flexbox fixes */
+    .greedy-nav .site-title {
+      padding-right: 3em;
+    }
+    .greedy-nav button {
+      position: absolute;
+      top: 0;
+      right: 0;
+      height: 100%;
+    }
+  </style>
+<![endif]-->
+
+
+
+    <!-- start custom head snippets -->
+
+<!-- insert favicons. use https://realfavicongenerator.net/ -->
+
+<!-- end custom head snippets -->
+
+  </head>
+
+  <body class="layout--single">
+    <nav class="skip-links">
+  <h2 class="screen-reader-text">Skip links</h2>
+  <ul>
+    <li><a href="#site-nav" class="screen-reader-shortcut">Skip to primary navigation</a></li>
+    <li><a href="#main" class="screen-reader-shortcut">Skip to content</a></li>
+    <li><a href="#footer" class="screen-reader-shortcut">Skip to footer</a></li>
+  </ul>
+</nav>
+
+    <!--[if lt IE 9]>
+<div class="notice--danger align-center" style="margin: 0;">You are using an <strong>outdated</strong> browser. Please <a href="https://browsehappy.com/">upgrade your browser</a> to improve your experience.</div>
+<![endif]-->
+
+    
+
+<div class="masthead">
+  <div class="masthead__inner-wrap">
+    <div class="masthead__menu">
+      <nav id="site-nav" class="greedy-nav">
+        
+        <a class="site-title" href="/">
+          Red Team Blog
+          
+        </a>
+        <ul class="visible-links"><li class="masthead__menu-item">
+              <a href="/">Home</a>
+            </li><li class="masthead__menu-item">
+              <a href="/posts">Posts</a>
+            </li><li class="masthead__menu-item">
+              <a href="/about">About</a>
+            </li></ul>
+        
+        <button class="greedy-nav__toggle hidden" type="button">
+          <span class="visually-hidden">Toggle menu</span>
+          <div class="navicon"></div>
+        </button>
+        <ul class="hidden-links hidden"></ul>
+      </nav>
+    </div>
+  </div>
+</div>
+
+
+    <div class="initial-content">
+      
+
+
+
+<div id="main" role="main">
+  
+  <div class="sidebar sticky">
+  
+
+
+<div itemscope itemtype="https://schema.org/Person">
+
+  
+    <div class="author__avatar">
+      
+        <img src="/images/me.jpg" alt="Zach Stein" itemprop="image">
+      
+    </div>
+  
+
+  <div class="author__content">
+    
+      <h3 class="author__name" itemprop="name">Zach Stein</h3>
+    
+    
+      <div class="author__bio" itemprop="description">
+        <p>Red Team @ ReliaQuest</p>
+
+      </div>
+    
+  </div>
+
+  <div class="author__urls-wrapper">
+    <button class="btn btn--inverse">Follow</button>
+    <ul class="author__urls social-icons">
+      
+        <li itemprop="homeLocation" itemscope itemtype="https://schema.org/Place">
+          <i class="fas fa-fw fa-map-marker-alt" aria-hidden="true"></i> <span itemprop="name">Tampa, FL</span>
+        </li>
+      
+
+      
+        
+          
+            <li><a href="mailto:zachinfosec@gmail.com" rel="nofollow noopener noreferrer"><i class="fas fa-fw fa-envelope-square" aria-hidden="true"></i><span class="label">Email</span></a></li>
+          
+        
+          
+        
+          
+            <li><a href="https://twitter.com/synzack21" rel="nofollow noopener noreferrer"><i class="fab fa-fw fa-twitter-square" aria-hidden="true"></i><span class="label">Twitter</span></a></li>
+          
+        
+          
+        
+          
+            <li><a href="https://github.com/Synzack" rel="nofollow noopener noreferrer"><i class="fab fa-fw fa-github" aria-hidden="true"></i><span class="label">GitHub</span></a></li>
+          
+        
+          
+        
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      
+
+      <!--
+  <li>
+    <a href="http://link-to-whatever-social-network.com/user/" itemprop="sameAs" rel="nofollow noopener noreferrer">
+      <i class="fas fa-fw" aria-hidden="true"></i> Custom Social Profile Link
+    </a>
+  </li>
+-->
+    </ul>
+  </div>
+</div>
+
+  
+  </div>
+
+
+
+  <article class="page" itemscope itemtype="https://schema.org/CreativeWork">
+    <meta itemprop="headline" content="SSL/TLS Tunneling to Bypass Filters &amp; Avoid Detection">
+    <meta itemprop="description" content="In certain environments, controls such as firewalls are in place that restrict outbound ports and protocols. For example, maybe only web traffic over ports 80 (HTTP) and 443 (HTTPS) are allowed outbound from a given workstation.In campaigns I have performed, I have had scenarios where we needed to control a device remotely (such as a raspberry pi) where direct terminal access would be ideal (such as SSH). But this requires an established external connection, where there are a few issues to consider:  Outbound SSH over port 22 may be blocked  Outbound SSH traffic over a non-standard port (22) may be blocked  Even if neither of the above is blocked, anomalous outbound SSH traffic on any port is suspicious and may trigger alerts and/or attract unwanted attention from a threat hunter or analystWhat is a solution to this? Tunneling!As an attacker we always want to make any inbound/outbound traffic look as normal as possible to ensure the operational security of our campaign. As the most common outbound traffic is likely web traffic, lets emulate this. There are a few tools we can use to make this happen. Best part is they are free and open source.SocatThe first step in emulating web traffic, is making our communication speak the same protocol as the normal traffic. HTTPS traffic (encrypted HTTP) uses SSL/TLS (Secure Socket Layer/ Transport Layer Security) encryption to ensure that all communication between the web browser and the web server are safe from a third party seeing what is being transferred. Any website where you see the lock icon next to the URL is using such encryption to protect your data. TLS is the preferred method, as TLS is an updated more secure version of SSL.How does this benefit an attacker? Since these protocols encrypt the traffic within them, if we can use SSL/TLS to encapsulate SSH traffic, the SSH traffic would be shielded from detection (unless there is a security device in the middle that can decrypt the SSL/TLS traffic).This is where Socat comes into play. Socat is a tool that is used to transfer data between two addresses using a desired protocol. Since we want to communicate with our C2 server using TLS, we can create this transfer pipe using OpenSSL. For our demonstration, we will use our ‘pc-tech.pro’ domain for C2 (Ubuntu server hosted in Amazon AWS).1) Install Socat on implanted/rogue device (Sudo apt install socat)2) Modify our SSH config file for our user to use ProxyCommand to establish a tunnel using OpenSSL to our C2 domain using port 443.What this configuration does, is that for any SSH connection to ‘pc-tech.pro’ socat will be used to create a TLS tunnel using the site’s certificates for the SSH traffic to be encapsulated in.StunnelNow that we have a means of encapsulating SSH traffic to our C2 server, we need something to receive and decrypt the traffic. For this, we will use the tool Stunnel. In short, Stunnel is a tool designed to add TLS encryption to applications that do not speak the protocols natively. In our case, it will be used to host the TLS certificates used for our encapsulation, decode incoming traffic, and forward the traffic to another port.1) The first step in our configuration is to install the software on the C2 server: (Sudo apt install stunnel4)2) Set up the configuration file (/etc/stunnel/stunnel.conf):*This will need to be created as it does not exist by default*Breaking this down by line:  Set pid for the process  Add TLS certificate  Add TLS key  Define rules for specified traffic type (SSH for us)          Listen on all interfaces on port 443 (HTTPS)      Forward &amp; decrypt all incoming SSH traffic to port 443 to a port of your choice (2222 for us)      For our TLS certificates, we used Let’s Encrypt certificates that can be used for webpages. Setting these up are outside the scope of this paper, but you can read more about this on their website.3) Enable Stunnel in config (/etc/default/stunnel4):*By default, the service is not enabled. To enable it change “Enabled=0” to “Enabled=1”*4) Start service: (Sudo service stunnel start)The following diagram is a visual of the steps we have taken so far:You may be asking, “Why are we forwarding traffic to port 2222 instead of standard SSH (port 22)?”This is because we are going to be hosting 3 services off this one port. SSH, HTTP, and HTTPS. This way, if we visit port 443 with a web browser, it will display a webpage to the user, while if we hit port 443 with SSH traffic, it will establish an SSH tunnel. This is done to avoid detection from an analyst and/or sandbox.This is where we get into our final tool, SSLH.SSLHSSLH is a “SSL/SSH Multiplexer” that acts like a switchboard for protocols it receives. It can be configured with any protocol that can be recognized with regular expressions. Simply put, depending on what traffic it receives, it will forward the traffic to a different port, based on the protocol. For our example, the following routes will be created.  If SSLH receives SSH traffic, forward to port 22  If SSLH receives HTTP traffic, forward to port 8080  If SSLH receives HTTPS traffic, forward to port 8443To configure our server to use this tool, we will take the following steps:1)	Install the tool on our C2 server: (Sudo apt install sslh)2)	Edit the configuration file in /etc/default/sslh:Breaking this down:  Ensure “RUN” is set to “yes”  Set “—listen” to the port we are forwarding Stunnel traffic to (port 2222). This is the port SSLH will be running on  For SSH traffic, forward to localhost, port 22  For SSL/TLS traffic, forward to localhost, port 8443  For HTTP traffic, forward to localhost, port 80803)	Start the service: (Sudo service sslh start)Now the only thing we need to do to complete our tunneling infrastructure is to set up our SSH and web services.Configuring Web Service and SSHTo serve web content to browsers, we will use an Apache web service on our C2 server (although any webserver will do).1)	In your desired web server port configuration, point HTTP and HTTPS to the ports configured in SSLH.2)	Start Web ServerFor SSH, we will use the standard SSH service (Sudo service ssh start)Now, if everything worked correctly, we should see all our ports listening accordingly:Testing the ConfigurationThe following diagram is a visual of what the final configuration should look like. All return traffic in will be encapsulated in the TLS tunnel as well.Web TrafficWhen visiting the site in a browser, we see a normal looking website that can host any content we desire:Wireshark Capture:SSH TrafficWhen we SSH to port 443 of the server, the socat OpenSSL tunnel is created, and we can SSH over the same port our web traffic hit above (the -p443 is not needed as it is in our socat config, just used to explicitly show the port we are connecting to):In both cases, the traffic looks like TLS encrypted web traffic.Optimizing for Offensive OperationsNow that we have proven we can tunnel SSH traffic over TLS, we need to be able to access our implanted device at any time, from anywhere. To take it one step further, we will set up a reverse SSH tunnel to our C2 server, which we can access from our own device.Host “Oasis” will simulate our rogue device. We will set up a reverse tunnel to our C2 server using SSH.What the below command does, is open port 7777 on our C2 server to tunnel all traffic destined to port 7777 to the SSH port on the rogue device. All of this is encapsulated in our TLS tunnel.Looking at the listening ports on our C2 server, we can see that this port is in-fact listening.Now from our attacking machine, we can SSH to our C2 server, then SSH to our rogue device.The following is a diagram of what this traffic looks like, using the C2 server as a jump box into the target environment. This allows us to have terminal access to the host, while masquerading as HTTPS traffic to a normal website.">
+    <meta itemprop="datePublished" content="2020-10-14T00:00:00-04:00">
+    
+
+    <div class="page__inner-wrap">
+      
+        <header>
+          <h1 id="page-title" class="page__title" itemprop="headline">SSL/TLS Tunneling to Bypass Filters &amp; Avoid Detection
+</h1>
+          
+            <p class="page__meta"><i class="far fa-clock" aria-hidden="true"></i> 
+
+
+
+
+  6 minute read
+
+</p>
+          
+        </header>
+      
+
+      <section class="page__content" itemprop="text">
+        
+        <p>In certain environments, controls such as firewalls are in place that restrict outbound ports and protocols. For example, maybe only web traffic over ports 80 (HTTP) and 443 (HTTPS) are allowed outbound from a given workstation.</p>
+
+<p>In campaigns I have performed, I have had scenarios where we needed to control a device remotely (such as a raspberry pi) where direct terminal access would be ideal (such as SSH). But this requires an established external connection, where there are a few issues to consider:</p>
+
+<ol>
+  <li>Outbound SSH over port 22 may be blocked</li>
+  <li>Outbound SSH traffic over a non-standard port (22) may be blocked</li>
+  <li>Even if neither of the above is blocked, anomalous outbound SSH traffic on any port is suspicious and may trigger alerts and/or attract unwanted attention from a threat hunter or analyst</li>
+</ol>
+
+<p>What is a solution to this? Tunneling!</p>
+
+<p>As an attacker we always want to make any inbound/outbound traffic look as normal as possible to ensure the operational security of our campaign. As the most common outbound traffic is likely web traffic, lets emulate this. There are a few tools we can use to make this happen. Best part is they are free and open source.</p>
+
+<h1 id="socat">Socat</h1>
+
+<p>The first step in emulating web traffic, is making our communication speak the same protocol as the normal traffic. HTTPS traffic (encrypted HTTP) uses <a href="https://www.websecurity.digicert.com/security-topics/what-is-ssl-tls-https">SSL/TLS</a> (Secure Socket Layer/ Transport Layer Security) encryption to ensure that all communication between the web browser and the web server are safe from a third party seeing what is being transferred. Any website where you see the lock icon next to the URL is using such encryption to protect your data. TLS is the preferred method, as TLS is an updated more secure version of SSL.</p>
+
+<p>How does this benefit an attacker? Since these protocols encrypt the traffic within them, if we can use SSL/TLS to encapsulate SSH traffic, the SSH traffic would be shielded from detection (unless there is a security device in the middle that can decrypt the SSL/TLS traffic).</p>
+
+<p>This is where <a href="https://medium.com/@copyconstruct/socat-29453e9fc8a6">Socat</a> comes into play. Socat is a tool that is used to transfer data between two addresses using a desired protocol. Since we want to communicate with our C2 server using TLS, we can create this transfer pipe using <a href="https://www.openssl.org/">OpenSSL</a>. For our demonstration, we will use our ‘<em>pc-tech.pro</em>’ domain for C2 (Ubuntu server hosted in Amazon AWS).</p>
+
+<p>1) Install Socat on implanted/rogue device (<em>Sudo apt install socat</em>)</p>
+
+<p><img src="/images/Tunneling-Traffic-With-SSL-and-TLS/socat-install.png" alt="image-center" class="align-center" /></p>
+
+<p>2) Modify our SSH config file for our user to use <em>ProxyCommand</em> to establish a tunnel using OpenSSL to our C2 domain using port 443.</p>
+
+<p><img src="/images/Tunneling-Traffic-With-SSL-and-TLS/ssh-config.png" alt="image-center" class="align-center" /></p>
+
+<p>What this configuration does, is that for any SSH connection to ‘<em>pc-tech.pro</em>’ socat will be used to create a TLS tunnel using the site’s certificates for the SSH traffic to be encapsulated in.</p>
+
+<h1 id="stunnel">Stunnel</h1>
+
+<p>Now that we have a means of encapsulating SSH traffic to our C2 server, we need something to receive and decrypt the traffic. For this, we will use the tool <a href="https://www.stunnel.org/">Stunnel</a>. In short, Stunnel is a tool designed to add TLS encryption to applications that do not speak the protocols natively. In our case, it will be used to host the TLS certificates used for our encapsulation, decode incoming traffic, and forward the traffic to another port.</p>
+
+<p>1) The first step in our configuration is to install the software on the C2 server: (<em>Sudo apt install stunnel4</em>)</p>
+
+<p><img src="/images/Tunneling-Traffic-With-SSL-and-TLS/stunnel-install.png" alt="image-center" class="align-center" /></p>
+
+<p>2) Set up the configuration file (/etc/stunnel/stunnel.conf):
+<em>*This will need to be created as it does not exist by default*</em></p>
+
+<p><img src="/images/Tunneling-Traffic-With-SSL-and-TLS/stunnel-config.png" alt="image-center" class="align-center" /></p>
+
+<p>Breaking this down by line:</p>
+
+<ol>
+  <li>Set pid for the process</li>
+  <li>Add TLS certificate</li>
+  <li>Add TLS key</li>
+  <li>Define rules for specified traffic type (SSH for us)
+    <ul>
+      <li>Listen on all interfaces on port 443 (HTTPS)</li>
+      <li>Forward &amp; decrypt all incoming SSH traffic to port 443 to a port of your choice (2222 for us)</li>
+    </ul>
+  </li>
+</ol>
+
+<p>For our TLS certificates, we used Let’s Encrypt certificates that can be used for webpages. Setting these up are outside the scope of this paper, but you can read more about this on their <a href="https://letsencrypt.org/getting-started/">website</a>.</p>
+
+<p>3) Enable Stunnel in config (/etc/default/stunnel4):</p>
+
+<p><em>*By default, the service is not enabled. To enable it change “Enabled=0” to “Enabled=1”*</em></p>
+
+<p><img src="/images/Tunneling-Traffic-With-SSL-and-TLS/stunnel-enable.png" alt="image-center" class="align-center" /></p>
+
+<p>4) Start service: (<em>Sudo service stunnel start</em>)</p>
+
+<p>The following diagram is a visual of the steps we have taken so far:</p>
+
+<p><img src="/images/Tunneling-Traffic-With-SSL-and-TLS/drawio.png" alt="image-center" class="align-center" /></p>
+
+<p>You may be asking, “Why are we forwarding traffic to port 2222 instead of standard SSH (port 22)?”</p>
+
+<p>This is because we are going to be hosting 3 services off this one port. SSH, HTTP, and HTTPS. This way, if we visit port 443 with a web browser, it will display a webpage to the user, while if we hit port 443 with SSH traffic, it will establish an SSH tunnel. This is done to avoid detection from an analyst and/or sandbox.This is where we get into our final tool, SSLH.</p>
+
+<h1 id="sslh">SSLH</h1>
+
+<p><a href="http://www.rutschle.net/tech/sslh/README.html">SSLH</a> is a “SSL/SSH Multiplexer” that acts like a switchboard for protocols it receives. It can be configured with any protocol that can be recognized with regular expressions. Simply put, depending on what traffic it receives, it will forward the traffic to a different port, based on the protocol. For our example, the following routes will be created.</p>
+
+<ol>
+  <li>If SSLH receives SSH traffic, forward to port 22</li>
+  <li>If SSLH receives HTTP traffic, forward to port 8080</li>
+  <li>If SSLH receives HTTPS traffic, forward to port 8443</li>
+</ol>
+
+<p>To configure our server to use this tool, we will take the following steps:</p>
+
+<p>1)	Install the tool on our C2 server: (<em>Sudo apt install sslh</em>)</p>
+
+<p><img src="/images/Tunneling-Traffic-With-SSL-and-TLS/sslh-install.png" alt="image-center" class="align-center" /></p>
+
+<p>2)	Edit the configuration file in /etc/default/sslh:</p>
+
+<p><img src="/images/Tunneling-Traffic-With-SSL-and-TLS/sslh-config.png" alt="image-center" class="align-center" /></p>
+
+<p>Breaking this down:</p>
+<ol>
+  <li>Ensure “RUN” is set to “yes”</li>
+  <li>Set “—listen” to the port we are forwarding Stunnel traffic to (port 2222). This is the port SSLH will be running on</li>
+  <li>For SSH traffic, forward to localhost, port 22</li>
+  <li>For SSL/TLS traffic, forward to localhost, port 8443</li>
+  <li>For HTTP traffic, forward to localhost, port 8080</li>
+</ol>
+
+<p>3)	Start the service: (<em>Sudo service sslh start</em>)</p>
+
+<p>Now the only thing we need to do to complete our tunneling infrastructure is to set up our SSH and web services.</p>
+
+<h1 id="configuring-web-service-and-ssh">Configuring Web Service and SSH</h1>
+
+<p>To serve web content to browsers, we will use an Apache web service on our C2 server (although any webserver will do).</p>
+
+<p>1)	In your desired web server port configuration, point HTTP and HTTPS to the ports configured in SSLH.</p>
+
+<p><img src="/images/Tunneling-Traffic-With-SSL-and-TLS/apache-config.png" alt="image-center" class="align-center" /></p>
+
+<p>2)	Start Web Server</p>
+
+<p>For SSH, we will use the standard SSH service (<em>Sudo service ssh start</em>)</p>
+
+<p>Now, if everything worked correctly, we should see all our ports listening accordingly:</p>
+
+<p><img src="/images/Tunneling-Traffic-With-SSL-and-TLS/listening-ports.png" alt="image-center" class="align-center" /></p>
+
+<h1 id="testing-the-configuration">Testing the Configuration</h1>
+
+<p>The following diagram is a visual of what the final configuration should look like. All return traffic in will be encapsulated in the TLS tunnel as well.</p>
+
+<p><img src="/images/Tunneling-Traffic-With-SSL-and-TLS/drawio2.png" alt="image-center" class="align-center" /></p>
+
+<h1 id="web-traffic">Web Traffic</h1>
+
+<p>When visiting the site in a browser, we see a normal looking website that can host any content we desire:</p>
+
+<p><img src="/images/Tunneling-Traffic-With-SSL-and-TLS/totally-legit1.png" alt="image-center" class="align-center" /></p>
+
+<p>Wireshark Capture:</p>
+
+<p><img src="/images/Tunneling-Traffic-With-SSL-and-TLS/totally-legit2.png" alt="image-center" class="align-center" /></p>
+
+<p><img src="/images/Tunneling-Traffic-With-SSL-and-TLS/totally-legit3.png" alt="image-center" class="align-center" /></p>
+
+<h1 id="ssh-traffic">SSH Traffic</h1>
+
+<p>When we SSH to port 443 of the server, the socat OpenSSL tunnel is created, and we can SSH over the same port our web traffic hit above (the -p443 is not needed as it is in our socat config, just used to explicitly show the port we are connecting to):</p>
+
+<p><img src="/images/Tunneling-Traffic-With-SSL-and-TLS/ssh1.png" alt="image-center" class="align-center" /></p>
+
+<p><img src="/images/Tunneling-Traffic-With-SSL-and-TLS/ssh2.png" alt="image-center" class="align-center" /></p>
+
+<p><img src="/images/Tunneling-Traffic-With-SSL-and-TLS/ssh3.png" alt="image-center" class="align-center" /></p>
+
+<p>In both cases, the traffic looks like TLS encrypted web traffic.</p>
+
+<h1 id="optimizing-for-offensive-operations">Optimizing for Offensive Operations</h1>
+
+<p>Now that we have proven we can tunnel SSH traffic over TLS, we need to be able to access our implanted device at any time, from anywhere. To take it one step further, we will set up a reverse SSH tunnel to our C2 server, which we can access from our own device.</p>
+
+<p>Host “Oasis” will simulate our rogue device. We will set up a reverse tunnel to our C2 server using SSH.</p>
+
+<p>What the below command does, is open port 7777 on our C2 server to tunnel all traffic destined to port 7777 to the SSH port on the rogue device. All of this is encapsulated in our TLS tunnel.</p>
+
+<p><img src="/images/Tunneling-Traffic-With-SSL-and-TLS/opt1.png" alt="image-center" class="align-center" /></p>
+
+<p>Looking at the listening ports on our C2 server, we can see that this port is in-fact listening.</p>
+
+<p><img src="/images/Tunneling-Traffic-With-SSL-and-TLS/opt2.png" alt="image-center" class="align-center" /></p>
+
+<p>Now from our attacking machine, we can SSH to our C2 server, then SSH to our rogue device.</p>
+
+<p><img src="/images/Tunneling-Traffic-With-SSL-and-TLS/opt3.png" alt="image-center" class="align-center" /></p>
+
+<p><img src="/images/Tunneling-Traffic-With-SSL-and-TLS/opt4.png" alt="image-center" class="align-center" /></p>
+
+<p>The following is a diagram of what this traffic looks like, using the C2 server as a jump box into the target environment. This allows us to have terminal access to the host, while masquerading as HTTPS traffic to a normal website.</p>
+
+<p><img src="/images/Tunneling-Traffic-With-SSL-and-TLS/drawio3.png" alt="image-center" class="align-center" /></p>
+
+
+        
+      </section>
+
+      <footer class="page__meta">
+        
+        
+
+
+        
+          <p class="page__date"><strong><i class="fas fa-fw fa-calendar-alt" aria-hidden="true"></i> Updated:</strong> <time datetime="2020-10-14T00:00:00-04:00">October 14, 2020</time></p>
+        
+      </footer>
+
+      <section class="page__share">
+  
+    <h4 class="page__share-title">Share on</h4>
+  
+
+  <a href="https://twitter.com/intent/tweet?text=SSL%2FTLS+Tunneling+to+Bypass+Filters+%26+Avoid+Detection%20http%3A%2F%2Flocalhost%3A4000%2FTunneling-Traffic-With-SSL-and-TLS%2F" class="btn btn--twitter" onclick="window.open(this.href, 'window', 'left=20,top=20,width=500,height=500,toolbar=1,resizable=0'); return false;" title="Share on Twitter"><i class="fab fa-fw fa-twitter" aria-hidden="true"></i><span> Twitter</span></a>
+
+  <a href="https://www.facebook.com/sharer/sharer.php?u=http%3A%2F%2Flocalhost%3A4000%2FTunneling-Traffic-With-SSL-and-TLS%2F" class="btn btn--facebook" onclick="window.open(this.href, 'window', 'left=20,top=20,width=500,height=500,toolbar=1,resizable=0'); return false;" title="Share on Facebook"><i class="fab fa-fw fa-facebook" aria-hidden="true"></i><span> Facebook</span></a>
+
+  <a href="https://www.linkedin.com/shareArticle?mini=true&url=http%3A%2F%2Flocalhost%3A4000%2FTunneling-Traffic-With-SSL-and-TLS%2F" class="btn btn--linkedin" onclick="window.open(this.href, 'window', 'left=20,top=20,width=500,height=500,toolbar=1,resizable=0'); return false;" title="Share on LinkedIn"><i class="fab fa-fw fa-linkedin" aria-hidden="true"></i><span> LinkedIn</span></a>
+</section>
+
+
+      
+  <nav class="pagination">
+    
+      <a href="/C2-Redirection-for-Offensive-Operations/" class="pagination--pager" title="C2 Redirection For Offensive Operations
+">Previous</a>
+    
+    
+      <a href="/Bring-Your-Own-Interpreter/" class="pagination--pager" title="Bring Your Own Interpreter (BYOI)
+">Next</a>
+    
+  </nav>
+
+    </div>
+
+    
+  </article>
+
+  
+  
+    <div class="page__related">
+      <h4 class="page__related-title">You may also enjoy</h4>
+      <div class="grid__wrapper">
+        
+          
+
+
+
+<div class="grid__item">
+  <article class="archive__item" itemscope itemtype="https://schema.org/CreativeWork">
+    
+    <h2 class="archive__item-title" itemprop="headline">
+      
+        <a href="/Blinding-EDR-On-Windows/" rel="permalink">Blinding EDR On Windows
+</a>
+      
+    </h2>
+    
+      <p class="page__meta"><i class="far fa-clock" aria-hidden="true"></i> 
+
+
+
+
+  23 minute read
+
+</p>
+    
+    <p class="archive__item-excerpt" itemprop="description">Acknowledgements
+
+My understanding of EDRs would not be possible without the help of many great security researchers. Below are some write-ups and talks that...</p>
+  </article>
+</div>
+
+        
+          
+
+
+
+<div class="grid__item">
+  <article class="archive__item" itemscope itemtype="https://schema.org/CreativeWork">
+    
+    <h2 class="archive__item-title" itemprop="headline">
+      
+        <a href="/Bring-Your-Own-Interpreter/" rel="permalink">Bring Your Own Interpreter (BYOI)
+</a>
+      
+    </h2>
+    
+      <p class="page__meta"><i class="far fa-clock" aria-hidden="true"></i> 
+
+
+
+
+  11 minute read
+
+</p>
+    
+    <p class="archive__item-excerpt" itemprop="description">Preface
+
+These techniques that will be discussed in this paper were not discovered by myself. This technique was made popular by Marcello Salvati, a red team...</p>
+  </article>
+</div>
+
+        
+          
+
+
+
+<div class="grid__item">
+  <article class="archive__item" itemscope itemtype="https://schema.org/CreativeWork">
+    
+    <h2 class="archive__item-title" itemprop="headline">
+      
+        <a href="/C2-Redirection-for-Offensive-Operations/" rel="permalink">C2 Redirection For Offensive Operations
+</a>
+      
+    </h2>
+    
+      <p class="page__meta"><i class="far fa-clock" aria-hidden="true"></i> 
+
+
+
+
+  3 minute read
+
+</p>
+    
+    <p class="archive__item-excerpt" itemprop="description">When creating a command-and-control infrastructure, it is common for the callbacks to not communicate directly to the attacker’s C2 server. Many times, they ...</p>
+  </article>
+</div>
+
+        
+          
+
+
+
+<div class="grid__item">
+  <article class="archive__item" itemscope itemtype="https://schema.org/CreativeWork">
+    
+    <h2 class="archive__item-title" itemprop="headline">
+      
+        <a href="/OAuth-Token-Stealing/" rel="permalink">Oauth Token Stealing
+</a>
+      
+    </h2>
+    
+      <p class="page__meta"><i class="far fa-clock" aria-hidden="true"></i> 
+
+
+
+
+  12 minute read
+
+</p>
+    
+    <p class="archive__item-excerpt" itemprop="description">Preface
+
+</p>
+  </article>
+</div>
+
+        
+      </div>
+    </div>
+  
+  
+</div>
+
+    </div>
+
+    
+
+    <div id="footer" class="page__footer">
+      <footer>
+        <!-- start custom footer snippets -->
+
+<!-- end custom footer snippets -->
+        <div class="page__footer-follow">
+  <ul class="social-icons">
+    
+      <li><strong>Follow:</strong></li>
+    
+
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+
+    <li><a href="/feed.xml"><i class="fas fa-fw fa-rss-square" aria-hidden="true"></i> Feed</a></li>
+  </ul>
+</div>
+
+<div class="page__footer-copyright">&copy; 2020 Zach Stein. Powered by <a href="https://jekyllrb.com" rel="nofollow">Jekyll</a> &amp; <a href="https://mademistakes.com/work/minimal-mistakes-jekyll-theme/" rel="nofollow">Minimal Mistakes</a>.</div>
+
+      </footer>
+    </div>
+
+    
+  <script src="/assets/js/main.min.js"></script>
+  <script src="https://kit.fontawesome.com/4eee35f757.js"></script>
+
+
+
+
+
+
+
+
+
+
+  </body>
+</html>

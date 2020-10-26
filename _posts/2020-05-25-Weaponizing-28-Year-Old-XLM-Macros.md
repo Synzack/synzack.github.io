@@ -1,3 +1,6 @@
+---
+title: Weaponizing 28 Year Old XLM Macros
+---
 # Overview 
 
 Excel 4.0 macros (XLM macros) are a feature of Microsoft Excel that date back to 1992. These macros can be embedded into an Excel sheet and do not use VBA. This is significant as many modern exploit campaigns utilize [VBA](https://docs.microsoft.com/en-us/office/vba/api/overview/) (Visual Basic for Applications) macros, which many security appliances have signatures for.  

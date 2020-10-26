@@ -1,4 +1,1025 @@
-<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="3.8.7">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2020-06-02T06:11:25-04:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">Red Team Blog</title><subtitle>An amazing website.</subtitle><author><name>Zach Stein</name></author><entry><title type="html">Oauth Token Stealing</title><link href="http://localhost:4000/OAuth-Token-Stealing/" rel="alternate" type="text/html" title="Oauth Token Stealing" /><published>2020-05-29T00:00:00-04:00</published><updated>2020-05-29T00:00:00-04:00</updated><id>http://localhost:4000/OAuth-Token-Stealing</id><content type="html" xml:base="http://localhost:4000/OAuth-Token-Stealing/">&lt;h1 id=&quot;preface&quot;&gt;Preface&lt;/h1&gt;
+<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="3.8.7">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2020-10-26T06:56:46-04:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">Red Team Blog</title><subtitle>An amazing website.</subtitle><author><name>Zach Stein</name></author><entry><title type="html">Blinding EDR On Windows</title><link href="http://localhost:4000/Blinding-EDR-On-Windows/" rel="alternate" type="text/html" title="Blinding EDR On Windows" /><published>2020-10-16T00:00:00-04:00</published><updated>2020-10-16T00:00:00-04:00</updated><id>http://localhost:4000/Blinding-EDR-On-Windows</id><content type="html" xml:base="http://localhost:4000/Blinding-EDR-On-Windows/">&lt;h1 id=&quot;acknowledgements&quot;&gt;Acknowledgements&lt;/h1&gt;
+
+&lt;p&gt;My understanding of EDRs would not be possible without the help of many great security researchers. Below are some write-ups and talks that really helped me gain the understanding needed and hit the ground running on the research that will be presented here. If you are interested to go deeper, be sure to check out the following research (in no particular order):&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;Jackson T&lt;/strong&gt;: &lt;a href=&quot;http://jackson-t.ca/edr-reversing-evading-01.html&quot;&gt;A Guide to Reversing and Evading EDRs&lt;/a&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;Christopher Vella&lt;/strong&gt;:&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&quot;https://www.youtube.com/watch?v=85H4RvPGIX4&quot;&gt;CrikeyCon 2019 - Reversing &amp;amp; bypassing EDRs&lt;/a&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&quot;https://christopher-vella.com/2019/09/06/recent-edr-av-observations/&quot;&gt;Recent EDR &amp;amp; AV Observations&lt;/a&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;Matteo Malvica&lt;/strong&gt;: &lt;a href=&quot;https://www.matteomalvica.com/blog/2020/07/15/silencing-the-edr/&quot;&gt;Silencing the EDR. How to disable process, threads and image-loading detection callbacks&lt;/a&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;William Burgess&lt;/strong&gt;: &lt;a href=&quot;https://www.youtube.com/watch?v=l8nkXCOYQC4&quot;&gt;Red Teaming in the EDR Age&lt;/a&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;BatSec&lt;/strong&gt;: &lt;a href=&quot;https://blog.dylan.codes/evading-sysmon-and-windows-event-logging/&quot;&gt;Universally Evading Sysmon and ETW&lt;/a&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;Rui Reis (fdiskyou)&lt;/strong&gt;: &lt;a href=&quot;http://deniable.org/windows/windows-callbacks&quot;&gt;Windows Kernel Ps Callbacks Experiments&lt;/a&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;Hoang Bui&lt;/strong&gt;: &lt;a href=&quot;https://medium.com/@fsx30/bypass-edrs-memory-protection-introduction-to-hooking-2efb21acffd6&quot;&gt;Bypass EDR’s Memory Protection, Introduction to Hooking&lt;/a&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;Omri Misgav and Udi Yavo&lt;/strong&gt;: &lt;a href=&quot;https://www.first.org/resources/papers/telaviv2019/Ensilo-Omri-Misgav-Udi-Yavo-Analyzing-Malware-Evasion-Trend-Bypassing-User-Mode-Hooks.pdf&quot;&gt;Bypassing User-Mode Hooks&lt;/a&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;Ackroute&lt;/strong&gt;: &lt;a href=&quot;https://ackroute.com/post/2017/08/08/sysmon-enumeration-overview/&quot;&gt;Sysmon Enumeration Overview&lt;/a&gt;&lt;/p&gt;
+
+&lt;h1 id=&quot;intro&quot;&gt;Intro&lt;/h1&gt;
+
+&lt;p&gt;Generally, when it comes to offensive operations and EDR systems, the techniques can fall into one of four categories.&lt;/p&gt;
+
+&lt;ol&gt;
+  &lt;li&gt;Just avoid them
+    &lt;ul&gt;
+      &lt;li&gt;If a host has EDR, move on to a host where the appliance is not installed&lt;/li&gt;
+      &lt;li&gt;Proxy traffic through the host, as to not execute commands on the system&lt;/li&gt;
+    &lt;/ul&gt;
+  &lt;/li&gt;
+  &lt;li&gt;Stick to the gray area
+    &lt;ul&gt;
+      &lt;li&gt;Blending in with typical network traffic. These actions may be slightly suspicious, but keep a low enough profile to need human eyes to analyze further&lt;/li&gt;
+    &lt;/ul&gt;
+  &lt;/li&gt;
+  &lt;li&gt;Operate in the blind spots
+    &lt;ul&gt;
+      &lt;li&gt;Sticking to those techniques which may not be logged. (ex. APIs, removing userland hooks, creating your own syscalls)&lt;/li&gt;
+    &lt;/ul&gt;
+  &lt;/li&gt;
+  &lt;li&gt;Disabling/tampering with EDR sensors
+    &lt;ul&gt;
+      &lt;li&gt;Patching the sensor, redirecting traffic, uninstalling, etc.&lt;/li&gt;
+    &lt;/ul&gt;
+  &lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;p&gt;This paper will be discussing those methods that would more fall into the “tampering” category, messing with the inner workings of the sensors themselves and how they hook into the system. While EDRs can also be installed on MacOS and Linux, this paper will focus only on Windows systems.&lt;/p&gt;
+
+&lt;p&gt;We will be discussing topics such as:&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Brief overview of the Windows kernel&lt;/li&gt;
+  &lt;li&gt;Kernel Callbacks in security appliances&lt;/li&gt;
+  &lt;li&gt;How/Why EDRs work&lt;/li&gt;
+  &lt;li&gt;Techniques to remove EDR visibility&lt;/li&gt;
+  &lt;li&gt;Short insights into other fun topics
+    &lt;ul&gt;
+      &lt;li&gt;The videogame hacking community&lt;/li&gt;
+      &lt;li&gt;Windows rootkits&lt;/li&gt;
+    &lt;/ul&gt;
+  &lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;As research into EDRs is relatively new, these topics are typically from independent researchers on individual aspects of the technology. My goal is to bring some of that research together in a high-level overview to increase general understanding, knowledge of new offensive techniques, and drive detection capabilities.&lt;/p&gt;
+
+&lt;p&gt;That being said, the purpose of this is paper not to be as in depth as some of the individual research (the rabbit hole goes &lt;strong&gt;&lt;em&gt;deep&lt;/em&gt;&lt;/strong&gt;) so if this topic sparks your interest, I encourage you to check out some of the links above.&lt;/p&gt;
+
+&lt;h1 id=&quot;what-is-an-edr&quot;&gt;What is an EDR?&lt;/h1&gt;
+
+&lt;p&gt;EDR stands for Endpoint Detection and Response. EDRs are the next generation of anti-virus and detecting suspicious activities on host systems. They provide the tools needed for continuous monitoring and advanced threats.&lt;/p&gt;
+
+&lt;p&gt;EDRs not only can look for malicious files, but also monitor endpoint and network events and record them in a database for further analysis, detection, and investigation. In many EDR consoles, you can see process trees, execution flows, process injections, and much more. If you were or are currently a security analyst, you may have even directly used these tools in your work.&lt;/p&gt;
+
+&lt;p&gt;Below are some common EDR vendors you may know.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Blinding-EDR-On-Windows/vendors.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;h1 id=&quot;prerequisites&quot;&gt;Prerequisites&lt;/h1&gt;
+
+&lt;h3 id=&quot;the-windows-kernel&quot;&gt;The Windows Kernel&lt;/h3&gt;
+
+&lt;p&gt;Before we get into how EDRs work, we need to have a basic understanding of the Windows Kernel. In the Windows architecture, there are different access modes. Two of the modes being user mode (informally called user land) and the kernel mode (kernel land).&lt;/p&gt;
+
+&lt;p&gt;You can think of user land as the part of Windows that you interact with. This includes applications available to the user such as Microsoft Office, Internet browsers (Chrome, Firefox, and others), etc. Generally, any application you would use in daily work or home use.&lt;/p&gt;
+
+&lt;p&gt;Kernel land is where system services run. These include operating system code, device drivers, system services, and much more. Kernel mode has permissions to all system memory and CPU instructions. You can think of the kernel like the heart of the operating system that bridges the gap between applications and the underlying hardware.&lt;/p&gt;
+
+&lt;p&gt;The reason for the split, is to protect critical Windows functions from being modified by the user or a user land application. If users were able to directly modify kernel code, it has not only huge security concerns, but also functionality concerns. If critical functions are tampered with, causing unhandled exceptions, it could cause critical errors and cause the system to crash.&lt;/p&gt;
+
+&lt;center&gt;Microsoft Documentation&lt;/center&gt;
+&lt;p&gt;&lt;img src=&quot;/images/Blinding-EDR-On-Windows/windows-kernel.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;h3 id=&quot;patchguard&quot;&gt;PatchGuard&lt;/h3&gt;
+
+&lt;p&gt;Back in the day (the x86 Windows XP days and before), there was not a clear permission divide between the user land and the kernel land. Applications were able to patch kernel functions for their own purposes (although the practice was discouraged by Microsoft). For example, applications may patch the kernel syscall table to their own memory space. So, when an application calls a certain kernel function, the AV or malicious application could direct execution to their own memory space.&lt;/p&gt;
+
+&lt;p&gt;Below is an example of a potential syscall table and how it could be modified. Before PatchGuard, an application could change the syscall table addresses. So, when another application tries to call the function, it would actually be calling the “rogue” function.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Blinding-EDR-On-Windows/syscall-table.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Granted, this was not always with malicious intent, as many antivirus engines used this functionality to increase their visibility (if a malicious application calls a function, it is redirected and analyzed by the AV function instead). By the same token though, this paved the way for malware families called “rootkits” that could run at the deepest levels of the kernel, take complete control of the operating system functions, and even persist past system recoveries. Not only this, but any application (good or bad) that made a bad patch to the kernel, and caused an unhandled exception, would result in the host to blue screening and crashing.&lt;/p&gt;
+
+&lt;p&gt;The Windows solution to this was &lt;a href=&quot;https://en.wikipedia.org/wiki/Kernel_Patch_Protection&quot;&gt;&lt;strong&gt;Kernel Patch Protection (KPP)&lt;/strong&gt;&lt;/a&gt;, more commonly known as &lt;strong&gt;PatchGuard&lt;/strong&gt;. This feature was first implemented in x64 editions of Windows XP and Server 2003 SP1. This functionality enforces restrictions on what can and cannot be modified within the kernel (like modifying syscall addresses). If any unauthorized patch is made, PatchGuard will perform a bug check and shut down the system through a blue screen/reboot with a &lt;a href=&quot;https://docs.microsoft.com/en-us/windows-hardware/drivers/debugger/bug-check-0x109---critical-structure-corruption&quot;&gt;CRITICAL_STRUCTURE_CORRUPTION&lt;/a&gt; error. Examples of modifications that may trigger a bug check are:&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Modifying system service tables&lt;/li&gt;
+  &lt;li&gt;Modifying descriptor tables&lt;/li&gt;
+  &lt;li&gt;Modifying or patching kernel libraries&lt;/li&gt;
+  &lt;li&gt;Kernel stacks not allocated by the kernel&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;&lt;em&gt;**It should be noted, PatchGuard is not a silver security bullet. Due to the way the Windows system operates, there are bypasses to PatchGuard, and malicious patches and rootkits still exist (although rare). Going in depth into PatchGuard is not in the scope of our EDR research.**&lt;/em&gt;&lt;/p&gt;
+
+&lt;p&gt;The biggest thing to take away from this, is that because of these protections, it wouldn’t be in AV/EDR vendors best interests to continue using kernel patches to operate. Because:&lt;/p&gt;
+
+&lt;ol&gt;
+  &lt;li&gt;
+    &lt;p&gt;If an AV/EDR service was using a PatchGuard bypass vulnerability to modify kernel space, it could be patched anytime by Microsoft and ruin their functionality and operations model&lt;/p&gt;
+  &lt;/li&gt;
+  &lt;li&gt;
+    &lt;p&gt;If there was a bug in the software, they would risk crashing the entire operating system&lt;/p&gt;
+  &lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;p&gt;Because of this, if applications (including AV/EDR applications), want to redirect execution flow, it has to happen within &lt;strong&gt;user land&lt;/strong&gt;. They do interact with the kernel through things like drivers, but we will get into that shortly.&lt;/p&gt;
+
+&lt;h3 id=&quot;how-do-processes-interact-with-the-kernel&quot;&gt;How Do Processes Interact with the Kernel?&lt;/h3&gt;
+
+&lt;p&gt;When an application calls the Windows API to execute its code, the flow looks something like this. (This specific graphic is from Christopher Vela’s 2019 &lt;a href=&quot;https://www.youtube.com/watch?v=85H4RvPGIX4&quot;&gt;CrikeyCon talk&lt;/a&gt;). Granted this is for &lt;a href=&quot;https://github.com/gentilkiwi/mimikatz&quot;&gt;Mimikatz.exe&lt;/a&gt;, but the same can be said for any program.&lt;/p&gt;
+
+&lt;center&gt;Slide from Christopher Vella&lt;/center&gt;
+&lt;p&gt;&lt;img src=&quot;/images/Blinding-EDR-On-Windows/vella1.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;In this example, because Mimikatz wants to read the memory from LSASS, it must call the &lt;a href=&quot;https://docs.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-readprocessmemory&quot;&gt;&lt;em&gt;ReadProcessMemory&lt;/em&gt;&lt;/a&gt; function within the Kernel32 library (called by Kernel32.dll). The function call will eventually be forwarded to the &lt;em&gt;NtReadVirtualMemory&lt;/em&gt; call within Ntdll.dll. (The inner workings are a little more complicated, but it’s not completely necessary to know how these Windows API calls work for the purposes of this example).&lt;/p&gt;
+
+&lt;p&gt;Since applications cannot interact with the kernel directly, they use what are called “&lt;a href=&quot;https://www.tutorialspoint.com/what-are-system-calls-in-operating-system&quot;&gt;Syscalls&lt;/a&gt;.” Syscalls act as a proxy-like call to kernel land.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Blinding-EDR-On-Windows/syscalls.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Basically, NTDLL creates the syscall to the kernel, where the kernel will execute the system call for &lt;em&gt;NtReadVirtualMemory&lt;/em&gt;. The kernel runs the necessary functions and the results of that function are returned from the syscall to the application. This way, the application is able to utilize the kernel functionality, without actually modifying or running in the kernel memory space&lt;/p&gt;
+
+&lt;h3 id=&quot;windows-drivers&quot;&gt;Windows Drivers&lt;/h3&gt;
+
+&lt;p&gt;There are situations where an application needs to access protected data in the kernel. For this, a corresponding driver is used. There are different types of drivers, such as hardware and software drivers. For the focus of this paper, we will focus on software drivers as we won’t be interacting with hardware such as a printer.&lt;/p&gt;
+
+&lt;p&gt;According to &lt;a href=&quot;https://docs.microsoft.com/en-us/windows-hardware/drivers/gettingstarted/what-is-a-driver-&quot;&gt;Microsoft documentation&lt;/a&gt;, a software driver is used when a tool needs to access core operating system data structures. The type of data structures that can only be accessed by code running in kernel mode. Typically, a tool that needs this functionality is split into two parts:&lt;/p&gt;
+
+&lt;ol&gt;
+  &lt;li&gt;User mode component (application)
+    &lt;ul&gt;
+      &lt;li&gt;This component runs in user mode and presents the user interface. In the scope of EDRs, think of this as the GUI console where you analyze the events&lt;/li&gt;
+    &lt;/ul&gt;
+  &lt;/li&gt;
+  &lt;li&gt;Kernel mode component (driver)
+    &lt;ul&gt;
+      &lt;li&gt;This component runs in kernel mode and passes information back to the corresponding application.&lt;/li&gt;
+    &lt;/ul&gt;
+  &lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;p&gt;Below is a graphic from the same Microsoft documentation:&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Blinding-EDR-On-Windows/drivers.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;In many EDR implementations, there is a software driver that allows the application to have access to the kernel and utilize it for the increased visibility into processes.&lt;/p&gt;
+
+&lt;p&gt;It is important to know that while drivers can run in kernel mode, they are still subject to the PatchGuard limitations. They cannot patch the protected memory without crashing the system.&lt;/p&gt;
+
+&lt;h3 id=&quot;kernel-callbacks&quot;&gt;Kernel Callbacks&lt;/h3&gt;
+
+&lt;p&gt;When Microsoft implemented PatchGuard, it was understood that this would remove functionality from some programs (such as AV). The compromise that was implemented was the use of what are called kernel callbacks.&lt;/p&gt;
+
+&lt;p&gt;The way a kernel callback works is that a driver can register a “callback” in its code for any supported action and receive a &lt;strong&gt;pre&lt;/strong&gt; or &lt;strong&gt;post&lt;/strong&gt; notification when that certain action is performed. Callbacks will not perform any modification to the underlying Windows Kernel.&lt;/p&gt;
+
+&lt;p&gt;A common implementation of these callbacks is &lt;a href=&quot;https://docs.microsoft.com/en-us/windows-hardware/drivers/ddi/ntddk/nf-ntddk-pssetcreateprocessnotifyroutineex?redirectedfrom=MSDN&quot;&gt;PsSetCreateProcessNotifyRoutine(Ex)&lt;/a&gt;. When a driver implements this callback function, anytime a new process is created, this callback routine is called and sends a notification to the driver which requested it. The driver can then execute its own functions accordingly.&lt;/p&gt;
+
+&lt;p&gt;Remember, this can be a pre or post notification. If a security appliance receives a pre notification that process is being created, it can check if that is a known bad file and give the EDR driver a notification to prevent the process from occurring. Similarly, if the risk is unknown, it can take the post notification and record the process actions for further analysis and correlation later.&lt;/p&gt;
+
+&lt;p&gt;The simplest visual I could find for this is from &lt;a href=&quot;https://www.opensourceforu.com/2012/02/function-pointers-and-callbacks-in-c-an-odyssey/&quot;&gt;OpenSourceForU&lt;/a&gt;. When a certain action occurs, the callback sends a notification to the specified kernel driver, which then sends instructions back to the user land application.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Blinding-EDR-On-Windows/kernel-callbacks.jpg&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;h1 id=&quot;so-how-do-edrs-work&quot;&gt;So How Do EDRs Work?&lt;/h1&gt;
+
+&lt;p&gt;So, I know that there was a lot of information in the prerequisite section, and you may be asking why you need to know about the Windows kernel to understand an EDR. This is fundamental to understanding EDRs because they touch all of the above topics.&lt;/p&gt;
+
+&lt;p&gt;To gain their visibility, EDRs perform some version the following actions.&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Kernel Callbacks&lt;/li&gt;
+  &lt;li&gt;DLL hooking/patching&lt;/li&gt;
+  &lt;li&gt;Redirection of execution flow&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;For the next sections, remember our process tree from earlier. We will elaborate on this process tree when adding an EDR to the mix.&lt;/p&gt;
+
+&lt;center&gt;Slide from Christopher Vella&lt;/center&gt;
+&lt;p&gt;&lt;img src=&quot;/images/Blinding-EDR-On-Windows/vella1.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;h3 id=&quot;kernel-callbacks-1&quot;&gt;Kernel Callbacks&lt;/h3&gt;
+
+&lt;p&gt;As stated earlier, many EDR applications have a corresponding driver which implements kernel callbacks. This example will be on a “process create” callback. When an application is executed (such as Mimikatz.exe) the process needs to be created through a function such as “&lt;a href=&quot;https://docs.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createprocessw&quot;&gt;&lt;em&gt;CreateProcessW&lt;/em&gt;&lt;/a&gt;”. By calling this function, a corresponding callback function is triggered and any driver that implements that callback receives a notification. So, in our graphic below:&lt;/p&gt;
+
+&lt;ol&gt;
+  &lt;li&gt;
+    &lt;p&gt;A malicious user or programs wants to spawn “malware.exe”. To do this, &lt;em&gt;CreateProcessW&lt;/em&gt; is called to create the new process and its primary thread. If you compare this to our Mimikatz process graph, this is in the Kernel32 step.&lt;/p&gt;
+  &lt;/li&gt;
+  &lt;li&gt;
+    &lt;p&gt;The “process create” callback function is executed, and sends a pre notification to the EDR driver stating that a new process is going to be created&lt;/p&gt;
+  &lt;/li&gt;
+  &lt;li&gt;
+    &lt;p&gt;The EDR driver instructs the EDR application (EDR_Process.exe) to inject and hook NTDLL in the memory space of the application (malware.exe) to redirect execution flow to itself. On the Mimikatz graph, this is the NTDLL section, &lt;strong&gt;right before&lt;/strong&gt; the syscall is made.&lt;/p&gt;
+  &lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;center&gt;Modified Slide from Christopher Vella&lt;/center&gt;
+&lt;p&gt;&lt;img src=&quot;/images/Blinding-EDR-On-Windows/vella3.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;h3 id=&quot;dll-hooking&quot;&gt;DLL Hooking&lt;/h3&gt;
+
+&lt;p&gt;Now let’s discuss what the NTDLL hooking entails.&lt;/p&gt;
+
+&lt;p&gt;Looking at our Mimikatz graph, here is where we currently are in our execution. NTDLL has been hooked by the EDR application, as instructed by the driver after receiving the callback notification. By hooking NTDLL, execution flow is redirected to the EDR memory space and functions (such as a DLL). As it is patching the memory space in &lt;strong&gt;user land&lt;/strong&gt;, there is no risk of crashing the kernel, and complies with PatchGuard.&lt;/p&gt;
+
+&lt;center&gt;Slide from Christopher Vella&lt;/center&gt;
+&lt;p&gt;&lt;img src=&quot;/images/Blinding-EDR-On-Windows/vella4.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Now you may be wondering what hooking means. Breaking this down further, below is an example of how an EDR might hook a DLL.&lt;/p&gt;
+
+&lt;p&gt;In the original NTDLL memory space (top box in red), the syscall instruction is seen to pass the execution to the kernel. This is the normal flow for an unhooked function.&lt;/p&gt;
+
+&lt;p&gt;In the hooked/patched function (bottom), an unconditional jump (or other instruction) is seen to the EDR memory space, in this graphic, &lt;em&gt;ctiuser&lt;/em&gt; (in the scope of our graph this is EDR.dll).&lt;/p&gt;
+
+&lt;p&gt;Once the execution flow has been redirected, the EDR engine analyzes the request and determines the execution it is okay to run. If the execution is determined safe enough to run, it will redirect function back to the original &lt;em&gt;NtWriteVirtualMemory&lt;/em&gt; address and execute the syscall to the kernel and return the response back to the requesting application. (left flow)&lt;/p&gt;
+
+&lt;p&gt;If the call is determined to be malicious, it will not make the system call, and terminate the process. (right flow)&lt;/p&gt;
+
+&lt;center&gt;Modified Slide from Christopher Vella&lt;/center&gt;
+&lt;p&gt;&lt;img src=&quot;/images/Blinding-EDR-On-Windows/vella5.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Going back to our Mimikatz graph, here is our flow including the callbacks and hooking.&lt;/p&gt;
+
+&lt;center&gt;Modified Slide from Christopher Vella&lt;/center&gt;
+&lt;p&gt;&lt;img src=&quot;/images/Blinding-EDR-On-Windows/vella-mod1.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;h1 id=&quot;blinding-the-edr-sensor&quot;&gt;Blinding the EDR Sensor&lt;/h1&gt;
+
+&lt;p&gt;Alright, so now that we have a &lt;em&gt;basic&lt;/em&gt; understanding of how EDR appliances get their visibility, we can start to understand their weak points. From what we know so far, we have two main places where we can hinder execution flow&lt;/p&gt;
+
+&lt;ol&gt;
+  &lt;li&gt;Removing the DLL hooks&lt;/li&gt;
+  &lt;li&gt;Removing the kernel callbacks&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;p&gt;While removing DLL hooks would work, it would likely have to be unhooked from each executable we run. This is not impossible, but we are going to be lazy and take the path of least resistance. If we remove the kernel callback entirely, in theory, ANY executable we run would not be subject to the judgement of the EDR. This is less stealthy than being more selective and doing it for each executable, but we won’t focus on DLL hooking for this demonstration.&lt;/p&gt;
+
+&lt;p&gt;Looking at our graph, here is where we are going to blind the sensor (blue).&lt;/p&gt;
+
+&lt;center&gt;Modified Slide from Christopher Vella&lt;/center&gt;
+&lt;p&gt;&lt;img src=&quot;/images/Blinding-EDR-On-Windows/vella-mod2.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;If no callback is made, the EDR driver will be unaware of the function call that will be sent to the kernel, the EDR appliance will never instructed to hook the DLL, and no redirection will occur in the execution flow. Thus, returning a clean, unmonitored flow:&lt;/p&gt;
+
+&lt;center&gt;Slide from Christopher Vella&lt;/center&gt;
+&lt;p&gt;&lt;img src=&quot;/images/Blinding-EDR-On-Windows/vella-mod3.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;h1 id=&quot;stopping-the-callback&quot;&gt;Stopping the Callback&lt;/h1&gt;
+
+&lt;p&gt;To remove a callback, we can choose from one of three options (although I’m sure you can come up with more) depending how disruptive we want to be.&lt;/p&gt;
+
+&lt;ol&gt;
+  &lt;li&gt;Zero out the &lt;strong&gt;entire&lt;/strong&gt; callback array&lt;/li&gt;
+  &lt;li&gt;Zero out the &lt;strong&gt;specific process&lt;/strong&gt; notify callback (delete only the EDR driver in the callback array)&lt;/li&gt;
+  &lt;li&gt;Patch the EDR process notify callback&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;p&gt;Let’s break each down.&lt;/p&gt;
+
+&lt;h4 id=&quot;zeroing-out-callback-arrays&quot;&gt;Zeroing Out Callback Arrays&lt;/h4&gt;
+
+&lt;p&gt;There is a lot that goes into callback arrays, but to make it simple, you can think of it as &lt;strong&gt;an array that holds pointers to every driver that requests notification from the callback function&lt;/strong&gt;. To show this, I will step into the Windows Kernel Debugger (KD). We won’t go into the details of how debugging works; this is more to show there is in-fact a callback array which exists.&lt;/p&gt;
+
+&lt;p&gt;First, we will unassemble (“u”) &lt;em&gt;PspSetCreateProcessNotifyRoutine&lt;/em&gt;, all we need to know for now is this is the callback routine which runs when a new process is created. We will continue unassembling until we reach an “lea” instruction. Again, all you need to know, is that this address will hold the callback array containing the list of drivers requesting the callback.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Blinding-EDR-On-Windows/kd1.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Looking into this memory address, we see the following array. Everything highlighted in red is a different pointer to a driver.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Blinding-EDR-On-Windows/kd2.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Now, I am going to cheat a little bit and use a tool we will discuss later, but to prove these are driver callbacks, lets list them alongside their names. While I won’t mention which specific EDR this is, just take my word that the highlighted is the EDR driver.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Blinding-EDR-On-Windows/kd3.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;We could zero out every address in this array, but that could cause the other drivers to potentially behave improperly, and you probably wouldn’t want to do that as an adversary or red teamer.&lt;/p&gt;
+
+&lt;p&gt;As we can see above, the value of the 6th element in our array is our EDR driver. If we zero out the callback address for the 6th element in the array (7th value, as arrays start with 0), in theory, we should be able to blind the EDR into process create events.&lt;/p&gt;
+
+&lt;p&gt;To demonstrate, let’s run Mimikatz (the most recent version on GitHub, no modifications) without modifying any callbacks. By running it, we are calling the “process create” function and triggering a callback that will notify the EDR, as its driver is in the callback array.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Blinding-EDR-On-Windows/mimi.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;We see that the driver saw the malicious process being created and instructed termination of the process.&lt;/p&gt;
+
+&lt;p&gt;Now, let’s zero out the EDR callback, removing the EDR driver from the array, and see if we can stop a notification from being sent to the EDR application.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Blinding-EDR-On-Windows/mimi2.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Run Mimikatz. As there is no longer a callback notification, the EDR is unaware the process was created, and no analysis/termination is performed.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Blinding-EDR-On-Windows/mimi3.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;If we return the driver address to our callback array, we can see the EDR functioning as intended when we run our program.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Blinding-EDR-On-Windows/mimi4.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Blinding-EDR-On-Windows/mimi5.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;h4 id=&quot;patching-the-edr-process-notify-callback&quot;&gt;Patching the EDR Process Notify Callback&lt;/h4&gt;
+
+&lt;p&gt;This method involved leaving the EDR driver callback in the array (not zeroing out) but changing the first instruction in the function to a “ret” function. In assembly instructions, this basically means just return.&lt;/p&gt;
+
+&lt;p&gt;Unassembling the EDR driver function further, we can see the beginning instruction before any changes.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Blinding-EDR-On-Windows/patching1.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Using our secret tool again, we will patch the first instruction with the ‘ret’ command.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Blinding-EDR-On-Windows/patching2.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Blinding-EDR-On-Windows/patching3.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Now, when we run Mimikatz, the callback function will still be called, but it will immediately “return” to normal execution flow:&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Blinding-EDR-On-Windows/patching4.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;To prove this works, let’s return the original instruction back into the function:&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Blinding-EDR-On-Windows/patching5.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;We can see that the EDR once again is able to terminate the execution flow.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Blinding-EDR-On-Windows/patching6.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;h1 id=&quot;optimizing-for-offensive-operations&quot;&gt;Optimizing for Offensive Operations&lt;/h1&gt;
+
+&lt;p&gt;While we can demonstrate blinding the EDR with the Windows Kernel Debugger, obviously, this is not ideal for a red team campaign or covert offensive operation. It would not be stealthy nor effective to jump into the debugger on every host where you wanted to tamper with EDR. This is where our secret tool comes into play.&lt;/p&gt;
+
+&lt;p&gt;To do this automatically through a malicious application, we need to create our own evil driver/ evil application combination, much like the EDR driver and application working together. Basically, fighting the kernel with the kernel.&lt;/p&gt;
+
+&lt;p&gt;I am not a kernel programmer, and won’t pretend to be, so we are going to use the evil client/evil driver from fdiskyou’s GitHub project at:&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;&lt;a href=&quot;https://github.com/fdiskyou/windows-ps-callbacks-experiments&quot;&gt;https://github.com/fdiskyou/windows-ps-callbacks-experiments&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;This is the accompanying repo for his &lt;a href=&quot;http://deniable.org/windows/windows-callbacks&quot;&gt;research&lt;/a&gt;, which is listed in the acknowledgements.&lt;/p&gt;
+
+&lt;p&gt;Compiling the source code, you will get two files:&lt;/p&gt;
+
+&lt;ol&gt;
+  &lt;li&gt;evil.sys (driver)&lt;/li&gt;
+  &lt;li&gt;evilcli.exe (application) – I renamed this to “&lt;em&gt;ninja.exe&lt;/em&gt;” in our previous example
+Below are the functions as outlined by the executable. It can zero out the callback arrays, as well as patch the function instructions with the “ret” command. It can also revert any changes back to how they were before the patching.&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Blinding-EDR-On-Windows/evilcli.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;The application works in tangent with the driver. The driver is what has the permissions necessary to read and modify the callback arrays, as it is running within the kernel space. The application is the user panel to instruct the driver on which commands to execute.&lt;/p&gt;
+
+&lt;h1 id=&quot;loading-a-driver-on-windows&quot;&gt;Loading a Driver on Windows&lt;/h1&gt;
+
+&lt;p&gt;To load a driver on a Windows system, you need a certain permission set, and comply with certain security rules:&lt;/p&gt;
+
+&lt;ol&gt;
+  &lt;li&gt;To load a driver, you need to be running with at least Administrator permissions on the host&lt;/li&gt;
+  &lt;li&gt;Windows does not let an unsigned kernel driver be loaded
+    &lt;ul&gt;
+      &lt;li&gt;The exception is if you enable “&lt;a href=&quot;https://docs.microsoft.com/en-us/windows-hardware/drivers/install/the-testsigning-boot-configuration-option&quot;&gt;&lt;em&gt;test signing mode&lt;/em&gt;&lt;/a&gt;”  (not seen outside of maybe developer environments)&lt;/li&gt;
+      &lt;li&gt;Otherwise, you have two options:
+        &lt;ul&gt;
+          &lt;li&gt;Exploit an existing driver&lt;/li&gt;
+          &lt;li&gt;Acquire a signature for your driver&lt;/li&gt;
+        &lt;/ul&gt;
+      &lt;/li&gt;
+    &lt;/ul&gt;
+  &lt;/li&gt;
+  &lt;li&gt;Any certificate issued after July 29th, 2015 will not be allowed to load on secure boot machines running on certain versions of Windows 10&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;p&gt;Looking at our requirements, local Administrator is a barrier, but it is not uncommon on an offensive engagement.&lt;/p&gt;
+
+&lt;p&gt;Loading the driver is where we run into more difficulty. I am not experienced in kernel driver exploitation, so I won’t choose this option. That leaves acquiring a signature for our evil.sys driver. The &lt;a href=&quot;http://wrogn.com/tag/driver-signing/&quot;&gt;process&lt;/a&gt; of getting a certificate from Microsoft is getting more stringent, (which is a great thing) and requires driver review by Microsoft, their certificate, and hundreds of dollars. So that leaves finding an existing certificate.&lt;/p&gt;
+
+&lt;p&gt;Demonstrated below, we are unable to load our driver outside of “test signing mode” (not covered here).&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Blinding-EDR-On-Windows/load-driver.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;After going down a long rabbit hole, I discovered a community that is familiar with exploiting and creating their own drivers. To my surprise, video game hackers have a very similar problem set to us and EDR, with regards to anti-cheat engines.&lt;/p&gt;
+
+&lt;p&gt;Anti-cheat engines for videogames work somewhat similar to EDRs in their function. They typically come with a driver that has the same ability to inject into the videogame’s memory space to ensure that no memory nor function calls have been modified.&lt;/p&gt;
+
+&lt;p&gt;To get around these anti-cheat engines, these hackers will also either load their own driver or exploit an existing driver to disable the functionality of the engines, much like us with EDR. (Look into the well-known &lt;a href=&quot;https://www.fuzzysecurity.com/tutorials/28.html&quot;&gt;vulnerable Capcom driver&lt;/a&gt; if you’re interested)&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;&lt;em&gt;Before we continue, I would like to emphasize that I do not encourage using the following techniques for malicious purposes such as unauthorized hacking or cheating in online games. This is simply a proof of concept on how they could be abused in an environment you have permission to test in.&lt;/em&gt;&lt;/strong&gt;&lt;/p&gt;
+
+&lt;p&gt;Digging through some forums, I quickly found someone who may have an answer to my problem set.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Blinding-EDR-On-Windows/forum.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Looking at the certificate, it was even created before our July 29th, 2015 cutoff date! Another interesting fact about driver certificates is that Microsoft generally doesn’t care if the certificate is expired. As long as it was valid at one point. This may change in the future, but for now this is allowed.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Blinding-EDR-On-Windows/cert.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Microsoft allows for signing drivers with their &lt;a href=&quot;https://docs.microsoft.com/en-us/windows/win32/seccrypto/signtool&quot;&gt;SignTool&lt;/a&gt; and an appropriate &lt;a href=&quot;https://docs.microsoft.com/en-us/windows-hardware/drivers/install/cross-certificates-for-kernel-mode-code-signing&quot;&gt;cross-certificate&lt;/a&gt;.  A cross certificate is “a digital certificate issued by one Certificate Authority (CA) that is used to sign the public key for the root certificate of another Certificate Authority. Cross-certificates provide a means to create a chain of trust from a single, trusted, root CA to multiple other CAs”&lt;/p&gt;
+
+&lt;p&gt;Cross-Certificates:&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Allow the operating system kernel to have a single trusted Microsoft root authority&lt;/li&gt;
+  &lt;li&gt;Extend the chain of trust to multiple commercial CAs that issue Software Publisher Certificates (SPCs), which are used for code-signing software for distribution, installation, and loading on Windows&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;Microsoft’s official documentation page has downloads for each CA cross-certificate.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Blinding-EDR-On-Windows/cross-cert.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;As our certificate is issued by “VeriSign Class 3 Public Primary Certification Authority,” we will download the corresponding certificate. Using the certificate and cross-certificate together, we can sign our evil driver.&lt;/p&gt;
+
+&lt;p&gt;To sign the certificate, we will use the SignTool mentioned before.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Blinding-EDR-On-Windows/sign-tool.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;As we can see, we hit a small issue. It is saying we have no certificates that meet the criteria. Remember, the certificate expired in November of 2014. Turns out, we can pull some trickery with our system time.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Blinding-EDR-On-Windows/date-time.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Blinding-EDR-On-Windows/sign-tool2.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Blinding-EDR-On-Windows/evil-cli-cert.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;With a “valid” certificate, we should now be able to load the driver without a problem&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Blinding-EDR-On-Windows/load-driver2.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;When we run our corresponding evilcli.exe application, we now can utilize the power of our new driver.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Blinding-EDR-On-Windows/run-evilcli.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;To show the correlation between the application and driver, below is what happens when you run the application without starting the driver.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Blinding-EDR-On-Windows/sc-evil.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;h1 id=&quot;bringing-it-all-together&quot;&gt;Bringing It All Together&lt;/h1&gt;
+
+&lt;p&gt;Finally, let’s use our new evil program to blind both the process, thread, and loadimage callbacks within our EDR driver and execute Mimikatz to get a full password dump.&lt;/p&gt;
+
+&lt;p&gt;First, we can see our EDR service is running (you’ll have to take my word again).&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Blinding-EDR-On-Windows/all-together1.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Blinding-EDR-On-Windows/all-together2.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Blinding-EDR-On-Windows/all-together3.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Blinding-EDR-On-Windows/all-together4.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;And to show restoring EDR callbacks:&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Blinding-EDR-On-Windows/all-together5.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Blinding-EDR-On-Windows/all-together6.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;h1 id=&quot;potential-detections&quot;&gt;Potential Detections&lt;/h1&gt;
+
+&lt;p&gt;Generally speaking, antivirus and other security appliances generally do not as heavily scrutinize drivers. They are typically treated with significantly more trust than typical user applications. Because of this, virus signatures are probably not the most reliable way to detect malicious drivers. (There were no AV detections from the EDR on my files).&lt;/p&gt;
+
+&lt;p&gt;In addition, many EDRs do not have anti-tampering measures implemented to check if their callbacks are zeroed out or changed. The reason for this is likely because as they are running in the kernel, they do not want to have the overhead of additional CPU cycles from continuously checking. This may change in the future with new research, but for now, we also can’t depend on the EDR to check for us.&lt;/p&gt;
+
+&lt;p&gt;What I did find, is that Windows event logs actually record when a driver is loaded within the System logs. Below is a normal EventID 7045 (A new service has been installed) for a legitimate Dell driver. These events happen when a new service/driver is installed on a machine. You may see this when you install printer/wifi/usb or another driver.&lt;/p&gt;
+
+&lt;p&gt;In all but one edge case (at least on my machine) the security identifier (SID) was always “S-1-5-18” (the local system account) when a kernel mode driver was loaded.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Blinding-EDR-On-Windows/detections1.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;As you can see when loading our evil driver, it was installed by a user SID:&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Blinding-EDR-On-Windows/detections2.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Granted, the driver is “evil.sys” and is installed in a user’s desktop, but in an actual campaign, it would likely have a legitimate name and be installed in the &lt;em&gt;System32\Drivers\&lt;/em&gt; directory.&lt;/p&gt;
+
+&lt;p&gt;I am sure if you were creating services with SYSTEM permissions, it would look different, but typically this requires tools like PSEXEC or exploits which would likely be noisier and have more potential to be flagged by AV/EDR.&lt;/p&gt;
+
+&lt;p&gt;This may not be a perfect detection, as there are edge cases. Below is an installation of the Npcap Packet Driver which comes with Wireshark installations. But I would imagine that in a non-technical business environment, drivers like these probably wouldn’t be installing on a normal workstation.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Blinding-EDR-On-Windows/detections3.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;</content><author><name>Zach Stein</name></author><summary type="html">Acknowledgements My understanding of EDRs would not be possible without the help of many great security researchers. Below are some write-ups and talks that really helped me gain the understanding needed and hit the ground running on the research that will be presented here. If you are interested to go deeper, be sure to check out the following research (in no particular order): Jackson T: A Guide to Reversing and Evading EDRs Christopher Vella: CrikeyCon 2019 - Reversing &amp;amp; bypassing EDRs Recent EDR &amp;amp; AV Observations Matteo Malvica: Silencing the EDR. How to disable process, threads and image-loading detection callbacks William Burgess: Red Teaming in the EDR Age BatSec: Universally Evading Sysmon and ETW Rui Reis (fdiskyou): Windows Kernel Ps Callbacks Experiments Hoang Bui: Bypass EDR’s Memory Protection, Introduction to Hooking Omri Misgav and Udi Yavo: Bypassing User-Mode Hooks Ackroute: Sysmon Enumeration Overview Intro Generally, when it comes to offensive operations and EDR systems, the techniques can fall into one of four categories. Just avoid them If a host has EDR, move on to a host where the appliance is not installed Proxy traffic through the host, as to not execute commands on the system Stick to the gray area Blending in with typical network traffic. These actions may be slightly suspicious, but keep a low enough profile to need human eyes to analyze further Operate in the blind spots Sticking to those techniques which may not be logged. (ex. APIs, removing userland hooks, creating your own syscalls) Disabling/tampering with EDR sensors Patching the sensor, redirecting traffic, uninstalling, etc. This paper will be discussing those methods that would more fall into the “tampering” category, messing with the inner workings of the sensors themselves and how they hook into the system. While EDRs can also be installed on MacOS and Linux, this paper will focus only on Windows systems. We will be discussing topics such as: Brief overview of the Windows kernel Kernel Callbacks in security appliances How/Why EDRs work Techniques to remove EDR visibility Short insights into other fun topics The videogame hacking community Windows rootkits As research into EDRs is relatively new, these topics are typically from independent researchers on individual aspects of the technology. My goal is to bring some of that research together in a high-level overview to increase general understanding, knowledge of new offensive techniques, and drive detection capabilities. That being said, the purpose of this is paper not to be as in depth as some of the individual research (the rabbit hole goes deep) so if this topic sparks your interest, I encourage you to check out some of the links above. What is an EDR? EDR stands for Endpoint Detection and Response. EDRs are the next generation of anti-virus and detecting suspicious activities on host systems. They provide the tools needed for continuous monitoring and advanced threats. EDRs not only can look for malicious files, but also monitor endpoint and network events and record them in a database for further analysis, detection, and investigation. In many EDR consoles, you can see process trees, execution flows, process injections, and much more. If you were or are currently a security analyst, you may have even directly used these tools in your work. Below are some common EDR vendors you may know. Prerequisites The Windows Kernel Before we get into how EDRs work, we need to have a basic understanding of the Windows Kernel. In the Windows architecture, there are different access modes. Two of the modes being user mode (informally called user land) and the kernel mode (kernel land). You can think of user land as the part of Windows that you interact with. This includes applications available to the user such as Microsoft Office, Internet browsers (Chrome, Firefox, and others), etc. Generally, any application you would use in daily work or home use. Kernel land is where system services run. These include operating system code, device drivers, system services, and much more. Kernel mode has permissions to all system memory and CPU instructions. You can think of the kernel like the heart of the operating system that bridges the gap between applications and the underlying hardware. The reason for the split, is to protect critical Windows functions from being modified by the user or a user land application. If users were able to directly modify kernel code, it has not only huge security concerns, but also functionality concerns. If critical functions are tampered with, causing unhandled exceptions, it could cause critical errors and cause the system to crash. Microsoft Documentation PatchGuard Back in the day (the x86 Windows XP days and before), there was not a clear permission divide between the user land and the kernel land. Applications were able to patch kernel functions for their own purposes (although the practice was discouraged by Microsoft). For example, applications may patch the kernel syscall table to their own memory space. So, when an application calls a certain kernel function, the AV or malicious application could direct execution to their own memory space. Below is an example of a potential syscall table and how it could be modified. Before PatchGuard, an application could change the syscall table addresses. So, when another application tries to call the function, it would actually be calling the “rogue” function. Granted, this was not always with malicious intent, as many antivirus engines used this functionality to increase their visibility (if a malicious application calls a function, it is redirected and analyzed by the AV function instead). By the same token though, this paved the way for malware families called “rootkits” that could run at the deepest levels of the kernel, take complete control of the operating system functions, and even persist past system recoveries. Not only this, but any application (good or bad) that made a bad patch to the kernel, and caused an unhandled exception, would result in the host to blue screening and crashing. The Windows solution to this was Kernel Patch Protection (KPP), more commonly known as PatchGuard. This feature was first implemented in x64 editions of Windows XP and Server 2003 SP1. This functionality enforces restrictions on what can and cannot be modified within the kernel (like modifying syscall addresses). If any unauthorized patch is made, PatchGuard will perform a bug check and shut down the system through a blue screen/reboot with a CRITICAL_STRUCTURE_CORRUPTION error. Examples of modifications that may trigger a bug check are: Modifying system service tables Modifying descriptor tables Modifying or patching kernel libraries Kernel stacks not allocated by the kernel **It should be noted, PatchGuard is not a silver security bullet. Due to the way the Windows system operates, there are bypasses to PatchGuard, and malicious patches and rootkits still exist (although rare). Going in depth into PatchGuard is not in the scope of our EDR research.** The biggest thing to take away from this, is that because of these protections, it wouldn’t be in AV/EDR vendors best interests to continue using kernel patches to operate. Because: If an AV/EDR service was using a PatchGuard bypass vulnerability to modify kernel space, it could be patched anytime by Microsoft and ruin their functionality and operations model If there was a bug in the software, they would risk crashing the entire operating system Because of this, if applications (including AV/EDR applications), want to redirect execution flow, it has to happen within user land. They do interact with the kernel through things like drivers, but we will get into that shortly. How Do Processes Interact with the Kernel? When an application calls the Windows API to execute its code, the flow looks something like this. (This specific graphic is from Christopher Vela’s 2019 CrikeyCon talk). Granted this is for Mimikatz.exe, but the same can be said for any program. Slide from Christopher Vella In this example, because Mimikatz wants to read the memory from LSASS, it must call the ReadProcessMemory function within the Kernel32 library (called by Kernel32.dll). The function call will eventually be forwarded to the NtReadVirtualMemory call within Ntdll.dll. (The inner workings are a little more complicated, but it’s not completely necessary to know how these Windows API calls work for the purposes of this example). Since applications cannot interact with the kernel directly, they use what are called “Syscalls.” Syscalls act as a proxy-like call to kernel land. Basically, NTDLL creates the syscall to the kernel, where the kernel will execute the system call for NtReadVirtualMemory. The kernel runs the necessary functions and the results of that function are returned from the syscall to the application. This way, the application is able to utilize the kernel functionality, without actually modifying or running in the kernel memory space Windows Drivers There are situations where an application needs to access protected data in the kernel. For this, a corresponding driver is used. There are different types of drivers, such as hardware and software drivers. For the focus of this paper, we will focus on software drivers as we won’t be interacting with hardware such as a printer. According to Microsoft documentation, a software driver is used when a tool needs to access core operating system data structures. The type of data structures that can only be accessed by code running in kernel mode. Typically, a tool that needs this functionality is split into two parts: User mode component (application) This component runs in user mode and presents the user interface. In the scope of EDRs, think of this as the GUI console where you analyze the events Kernel mode component (driver) This component runs in kernel mode and passes information back to the corresponding application. Below is a graphic from the same Microsoft documentation: In many EDR implementations, there is a software driver that allows the application to have access to the kernel and utilize it for the increased visibility into processes. It is important to know that while drivers can run in kernel mode, they are still subject to the PatchGuard limitations. They cannot patch the protected memory without crashing the system. Kernel Callbacks When Microsoft implemented PatchGuard, it was understood that this would remove functionality from some programs (such as AV). The compromise that was implemented was the use of what are called kernel callbacks. The way a kernel callback works is that a driver can register a “callback” in its code for any supported action and receive a pre or post notification when that certain action is performed. Callbacks will not perform any modification to the underlying Windows Kernel. A common implementation of these callbacks is PsSetCreateProcessNotifyRoutine(Ex). When a driver implements this callback function, anytime a new process is created, this callback routine is called and sends a notification to the driver which requested it. The driver can then execute its own functions accordingly. Remember, this can be a pre or post notification. If a security appliance receives a pre notification that process is being created, it can check if that is a known bad file and give the EDR driver a notification to prevent the process from occurring. Similarly, if the risk is unknown, it can take the post notification and record the process actions for further analysis and correlation later. The simplest visual I could find for this is from OpenSourceForU. When a certain action occurs, the callback sends a notification to the specified kernel driver, which then sends instructions back to the user land application. So How Do EDRs Work? So, I know that there was a lot of information in the prerequisite section, and you may be asking why you need to know about the Windows kernel to understand an EDR. This is fundamental to understanding EDRs because they touch all of the above topics. To gain their visibility, EDRs perform some version the following actions. Kernel Callbacks DLL hooking/patching Redirection of execution flow For the next sections, remember our process tree from earlier. We will elaborate on this process tree when adding an EDR to the mix. Slide from Christopher Vella Kernel Callbacks As stated earlier, many EDR applications have a corresponding driver which implements kernel callbacks. This example will be on a “process create” callback. When an application is executed (such as Mimikatz.exe) the process needs to be created through a function such as “CreateProcessW”. By calling this function, a corresponding callback function is triggered and any driver that implements that callback receives a notification. So, in our graphic below: A malicious user or programs wants to spawn “malware.exe”. To do this, CreateProcessW is called to create the new process and its primary thread. If you compare this to our Mimikatz process graph, this is in the Kernel32 step. The “process create” callback function is executed, and sends a pre notification to the EDR driver stating that a new process is going to be created The EDR driver instructs the EDR application (EDR_Process.exe) to inject and hook NTDLL in the memory space of the application (malware.exe) to redirect execution flow to itself. On the Mimikatz graph, this is the NTDLL section, right before the syscall is made. Modified Slide from Christopher Vella DLL Hooking Now let’s discuss what the NTDLL hooking entails. Looking at our Mimikatz graph, here is where we currently are in our execution. NTDLL has been hooked by the EDR application, as instructed by the driver after receiving the callback notification. By hooking NTDLL, execution flow is redirected to the EDR memory space and functions (such as a DLL). As it is patching the memory space in user land, there is no risk of crashing the kernel, and complies with PatchGuard. Slide from Christopher Vella Now you may be wondering what hooking means. Breaking this down further, below is an example of how an EDR might hook a DLL. In the original NTDLL memory space (top box in red), the syscall instruction is seen to pass the execution to the kernel. This is the normal flow for an unhooked function. In the hooked/patched function (bottom), an unconditional jump (or other instruction) is seen to the EDR memory space, in this graphic, ctiuser (in the scope of our graph this is EDR.dll). Once the execution flow has been redirected, the EDR engine analyzes the request and determines the execution it is okay to run. If the execution is determined safe enough to run, it will redirect function back to the original NtWriteVirtualMemory address and execute the syscall to the kernel and return the response back to the requesting application. (left flow) If the call is determined to be malicious, it will not make the system call, and terminate the process. (right flow) Modified Slide from Christopher Vella Going back to our Mimikatz graph, here is our flow including the callbacks and hooking. Modified Slide from Christopher Vella Blinding the EDR Sensor Alright, so now that we have a basic understanding of how EDR appliances get their visibility, we can start to understand their weak points. From what we know so far, we have two main places where we can hinder execution flow Removing the DLL hooks Removing the kernel callbacks While removing DLL hooks would work, it would likely have to be unhooked from each executable we run. This is not impossible, but we are going to be lazy and take the path of least resistance. If we remove the kernel callback entirely, in theory, ANY executable we run would not be subject to the judgement of the EDR. This is less stealthy than being more selective and doing it for each executable, but we won’t focus on DLL hooking for this demonstration. Looking at our graph, here is where we are going to blind the sensor (blue). Modified Slide from Christopher Vella If no callback is made, the EDR driver will be unaware of the function call that will be sent to the kernel, the EDR appliance will never instructed to hook the DLL, and no redirection will occur in the execution flow. Thus, returning a clean, unmonitored flow: Slide from Christopher Vella Stopping the Callback To remove a callback, we can choose from one of three options (although I’m sure you can come up with more) depending how disruptive we want to be. Zero out the entire callback array Zero out the specific process notify callback (delete only the EDR driver in the callback array) Patch the EDR process notify callback Let’s break each down. Zeroing Out Callback Arrays There is a lot that goes into callback arrays, but to make it simple, you can think of it as an array that holds pointers to every driver that requests notification from the callback function. To show this, I will step into the Windows Kernel Debugger (KD). We won’t go into the details of how debugging works; this is more to show there is in-fact a callback array which exists. First, we will unassemble (“u”) PspSetCreateProcessNotifyRoutine, all we need to know for now is this is the callback routine which runs when a new process is created. We will continue unassembling until we reach an “lea” instruction. Again, all you need to know, is that this address will hold the callback array containing the list of drivers requesting the callback. Looking into this memory address, we see the following array. Everything highlighted in red is a different pointer to a driver. Now, I am going to cheat a little bit and use a tool we will discuss later, but to prove these are driver callbacks, lets list them alongside their names. While I won’t mention which specific EDR this is, just take my word that the highlighted is the EDR driver. We could zero out every address in this array, but that could cause the other drivers to potentially behave improperly, and you probably wouldn’t want to do that as an adversary or red teamer. As we can see above, the value of the 6th element in our array is our EDR driver. If we zero out the callback address for the 6th element in the array (7th value, as arrays start with 0), in theory, we should be able to blind the EDR into process create events. To demonstrate, let’s run Mimikatz (the most recent version on GitHub, no modifications) without modifying any callbacks. By running it, we are calling the “process create” function and triggering a callback that will notify the EDR, as its driver is in the callback array. We see that the driver saw the malicious process being created and instructed termination of the process. Now, let’s zero out the EDR callback, removing the EDR driver from the array, and see if we can stop a notification from being sent to the EDR application. Run Mimikatz. As there is no longer a callback notification, the EDR is unaware the process was created, and no analysis/termination is performed. If we return the driver address to our callback array, we can see the EDR functioning as intended when we run our program. Patching the EDR Process Notify Callback This method involved leaving the EDR driver callback in the array (not zeroing out) but changing the first instruction in the function to a “ret” function. In assembly instructions, this basically means just return. Unassembling the EDR driver function further, we can see the beginning instruction before any changes. Using our secret tool again, we will patch the first instruction with the ‘ret’ command. Now, when we run Mimikatz, the callback function will still be called, but it will immediately “return” to normal execution flow: To prove this works, let’s return the original instruction back into the function: We can see that the EDR once again is able to terminate the execution flow. Optimizing for Offensive Operations While we can demonstrate blinding the EDR with the Windows Kernel Debugger, obviously, this is not ideal for a red team campaign or covert offensive operation. It would not be stealthy nor effective to jump into the debugger on every host where you wanted to tamper with EDR. This is where our secret tool comes into play. To do this automatically through a malicious application, we need to create our own evil driver/ evil application combination, much like the EDR driver and application working together. Basically, fighting the kernel with the kernel. I am not a kernel programmer, and won’t pretend to be, so we are going to use the evil client/evil driver from fdiskyou’s GitHub project at: https://github.com/fdiskyou/windows-ps-callbacks-experiments This is the accompanying repo for his research, which is listed in the acknowledgements. Compiling the source code, you will get two files: evil.sys (driver) evilcli.exe (application) – I renamed this to “ninja.exe” in our previous example Below are the functions as outlined by the executable. It can zero out the callback arrays, as well as patch the function instructions with the “ret” command. It can also revert any changes back to how they were before the patching. The application works in tangent with the driver. The driver is what has the permissions necessary to read and modify the callback arrays, as it is running within the kernel space. The application is the user panel to instruct the driver on which commands to execute. Loading a Driver on Windows To load a driver on a Windows system, you need a certain permission set, and comply with certain security rules: To load a driver, you need to be running with at least Administrator permissions on the host Windows does not let an unsigned kernel driver be loaded The exception is if you enable “test signing mode” (not seen outside of maybe developer environments) Otherwise, you have two options: Exploit an existing driver Acquire a signature for your driver Any certificate issued after July 29th, 2015 will not be allowed to load on secure boot machines running on certain versions of Windows 10 Looking at our requirements, local Administrator is a barrier, but it is not uncommon on an offensive engagement. Loading the driver is where we run into more difficulty. I am not experienced in kernel driver exploitation, so I won’t choose this option. That leaves acquiring a signature for our evil.sys driver. The process of getting a certificate from Microsoft is getting more stringent, (which is a great thing) and requires driver review by Microsoft, their certificate, and hundreds of dollars. So that leaves finding an existing certificate. Demonstrated below, we are unable to load our driver outside of “test signing mode” (not covered here). After going down a long rabbit hole, I discovered a community that is familiar with exploiting and creating their own drivers. To my surprise, video game hackers have a very similar problem set to us and EDR, with regards to anti-cheat engines. Anti-cheat engines for videogames work somewhat similar to EDRs in their function. They typically come with a driver that has the same ability to inject into the videogame’s memory space to ensure that no memory nor function calls have been modified. To get around these anti-cheat engines, these hackers will also either load their own driver or exploit an existing driver to disable the functionality of the engines, much like us with EDR. (Look into the well-known vulnerable Capcom driver if you’re interested) Before we continue, I would like to emphasize that I do not encourage using the following techniques for malicious purposes such as unauthorized hacking or cheating in online games. This is simply a proof of concept on how they could be abused in an environment you have permission to test in. Digging through some forums, I quickly found someone who may have an answer to my problem set. Looking at the certificate, it was even created before our July 29th, 2015 cutoff date! Another interesting fact about driver certificates is that Microsoft generally doesn’t care if the certificate is expired. As long as it was valid at one point. This may change in the future, but for now this is allowed. Microsoft allows for signing drivers with their SignTool and an appropriate cross-certificate. A cross certificate is “a digital certificate issued by one Certificate Authority (CA) that is used to sign the public key for the root certificate of another Certificate Authority. Cross-certificates provide a means to create a chain of trust from a single, trusted, root CA to multiple other CAs” Cross-Certificates: Allow the operating system kernel to have a single trusted Microsoft root authority Extend the chain of trust to multiple commercial CAs that issue Software Publisher Certificates (SPCs), which are used for code-signing software for distribution, installation, and loading on Windows Microsoft’s official documentation page has downloads for each CA cross-certificate. As our certificate is issued by “VeriSign Class 3 Public Primary Certification Authority,” we will download the corresponding certificate. Using the certificate and cross-certificate together, we can sign our evil driver. To sign the certificate, we will use the SignTool mentioned before. As we can see, we hit a small issue. It is saying we have no certificates that meet the criteria. Remember, the certificate expired in November of 2014. Turns out, we can pull some trickery with our system time. With a “valid” certificate, we should now be able to load the driver without a problem When we run our corresponding evilcli.exe application, we now can utilize the power of our new driver. To show the correlation between the application and driver, below is what happens when you run the application without starting the driver. Bringing It All Together Finally, let’s use our new evil program to blind both the process, thread, and loadimage callbacks within our EDR driver and execute Mimikatz to get a full password dump. First, we can see our EDR service is running (you’ll have to take my word again). And to show restoring EDR callbacks: Potential Detections Generally speaking, antivirus and other security appliances generally do not as heavily scrutinize drivers. They are typically treated with significantly more trust than typical user applications. Because of this, virus signatures are probably not the most reliable way to detect malicious drivers. (There were no AV detections from the EDR on my files). In addition, many EDRs do not have anti-tampering measures implemented to check if their callbacks are zeroed out or changed. The reason for this is likely because as they are running in the kernel, they do not want to have the overhead of additional CPU cycles from continuously checking. This may change in the future with new research, but for now, we also can’t depend on the EDR to check for us. What I did find, is that Windows event logs actually record when a driver is loaded within the System logs. Below is a normal EventID 7045 (A new service has been installed) for a legitimate Dell driver. These events happen when a new service/driver is installed on a machine. You may see this when you install printer/wifi/usb or another driver. In all but one edge case (at least on my machine) the security identifier (SID) was always “S-1-5-18” (the local system account) when a kernel mode driver was loaded. As you can see when loading our evil driver, it was installed by a user SID: Granted, the driver is “evil.sys” and is installed in a user’s desktop, but in an actual campaign, it would likely have a legitimate name and be installed in the System32\Drivers\ directory. I am sure if you were creating services with SYSTEM permissions, it would look different, but typically this requires tools like PSEXEC or exploits which would likely be noisier and have more potential to be flagged by AV/EDR. This may not be a perfect detection, as there are edge cases. Below is an installation of the Npcap Packet Driver which comes with Wireshark installations. But I would imagine that in a non-technical business environment, drivers like these probably wouldn’t be installing on a normal workstation.</summary></entry><entry><title type="html">Bring Your Own Interpreter (BYOI)</title><link href="http://localhost:4000/Bring-Your-Own-Interpreter/" rel="alternate" type="text/html" title="Bring Your Own Interpreter (BYOI)" /><published>2020-10-15T00:00:00-04:00</published><updated>2020-10-15T00:00:00-04:00</updated><id>http://localhost:4000/Bring-Your-Own-Interpreter</id><content type="html" xml:base="http://localhost:4000/Bring-Your-Own-Interpreter/">&lt;h1 id=&quot;preface&quot;&gt;Preface&lt;/h1&gt;
+
+&lt;p&gt;These techniques that will be discussed in this paper were not discovered by myself. This technique was made popular by &lt;a href=&quot;https://github.com/byt3bl33d3r&quot;&gt;Marcello Salvati&lt;/a&gt;, a red teamer at Black Hills Information Security. He published an article on the topic that can be found on the Black Hills &lt;a href=&quot;https://www.blackhillsinfosec.com/red-teamers-cookbook-byoi-bring-your-own-interpreter/&quot;&gt;blog&lt;/a&gt;. SILENTTRINITY is his C2 (command and control) implementation of the concept. Be sure to check out his work.&lt;/p&gt;
+
+&lt;p&gt;The purpose of this paper is to break down the concepts in a way that is (hopefully) easy to understand and increase awareness into the new offensive landscape when it comes to tooling and detection.&lt;/p&gt;
+
+&lt;h1 id=&quot;the-offensive-problem-set&quot;&gt;The (Offensive) Problem Set&lt;/h1&gt;
+
+&lt;p&gt;In the not so distant past, red teamers and malicious actors alike loved to utilize PowerShell for their offensive scripts, C2 channels, malware, basically everything. It was built into modern Windows operating systems by default, could pull down remote scripts, execute in memory, and was basically invisible due to lack of controls in place.&lt;/p&gt;
+
+&lt;p&gt;In the last couple years, defensive products and Microsoft caught on to the abuse of this scripting language. After PowerShell v1, protections started being integrated such as &lt;a href=&quot;https://docs.microsoft.com/en-us/powershell/module/microsoft.powershell.host/start-transcript?view=powershell-7&quot;&gt;Transcript logging&lt;/a&gt;, &lt;a href=&quot;https://docs.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_script_blocks?view=powershell-7&quot;&gt;Script Block Logging&lt;/a&gt;, &lt;a href=&quot;https://docs.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_group_policy_settings?view=powershell-7&quot;&gt;Module Logging&lt;/a&gt;, and &lt;a href=&quot;https://docs.microsoft.com/en-us/windows/win32/amsi/antimalware-scan-interface-portal&quot;&gt;AMSI&lt;/a&gt;.&lt;/p&gt;
+
+&lt;p&gt;Products such as EDRs started creating rules that looked for certain strings/commands, such as using “&lt;em&gt;IEX (New-Object Net.WebClient).DownloadString&lt;/em&gt;” to download remote scripts or “exec bypass” to import custom scripts. Some environments block PowerShell altogether or alert anytime it is used.&lt;/p&gt;
+
+&lt;p&gt;While PowerShell may not be completely “dead”, as there are always new bypasses, it has become more trouble than it is worth in most red team engagements (and likely advanced threat actor campaigns). It has become high risk from a stealth perspective with all the detections associated with it.&lt;/p&gt;
+
+&lt;h1 id=&quot;what-is-powershell-why-did-it-work-so-well&quot;&gt;What is PowerShell? Why did it Work so Well?&lt;/h1&gt;
+
+&lt;p&gt;PowerShell was built by Microsoft for task automation and configuration management, with its own scripting language. The reason it was able to be integrated into virtually all new Windows operating systems is that it is built upon the .NET Framework. The best/easiest explanation I could find for the .NET Framework can be found &lt;a href=&quot;https://www.howtogeek.com/253588/what-is-the-microsoft-net-framework-and-why-is-it-installed-on-my-pc/&quot;&gt;here&lt;/a&gt;.&lt;/p&gt;
+
+&lt;p&gt;The quick one sentence summary of this framework is that it is a shared library of code that contains Application Programming Interfaces (APIs) used to develop applications that can be used in programming languages.&lt;/p&gt;
+
+&lt;p&gt;The important thing to note, is that the .NET Framework is not specific to any language. There are many different languages that utilize the framework to function. The .NET Framework is the backbone for many common Microsoft programming languages you may know, including (but certainly are not limited to):&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;C#&lt;/li&gt;
+  &lt;li&gt;F#&lt;/li&gt;
+  &lt;li&gt;Visual Basic&lt;/li&gt;
+  &lt;li&gt;PowerShell&lt;/li&gt;
+  &lt;li&gt;IronPython&lt;/li&gt;
+  &lt;li&gt;IronRuby&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;PowerShell and C# are built into Windows by default, so it makes them very easy to use and execute without any external DLLs. There are even many third-party programming languages as well. If you wanted to, you could create your own language from the .NET framework.&lt;/p&gt;
+
+&lt;p&gt;.NET Assemblies are the results of compiling a .NET language. Think of an EXE or DLL when you compile a C# program, these are .NET assemblies. These assemblies can be executed by ANY .NET language and can be loaded reflectively in memory using .NET’s &lt;a href=&quot;https://docs.microsoft.com/en-us/dotnet/api/system.reflection.assembly.load?view=netcore-3.1&quot;&gt;Assembly.Load()&lt;/a&gt;.  Remember these points moving forward in this paper.&lt;/p&gt;
+
+&lt;h1 id=&quot;offensive-tooling-shift&quot;&gt;Offensive Tooling Shift&lt;/h1&gt;
+
+&lt;p&gt;If you follow the offensive tooling community, you may have noticed a shift in methods, where C# is now the go-to language over PowerShell. Many of the common PowerShell tools have been ported to the C#.&lt;/p&gt;
+
+&lt;p&gt;&lt;ins&gt;&lt;strong&gt;PowerShell Tool -&amp;gt; C# Tool&lt;/strong&gt;&lt;/ins&gt;&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;PowerUp -&amp;gt; SharpUp&lt;/li&gt;
+  &lt;li&gt;BloodHound -&amp;gt; SharpHound&lt;/li&gt;
+  &lt;li&gt;PowerView -&amp;gt; SharpView&lt;/li&gt;
+  &lt;li&gt;MimiKatz -&amp;gt; SafetyKatz&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;The reason for this is best described in Marcello’s &lt;a href=&quot;https://www.youtube.com/watch?v=o6m6_TncrcI&amp;amp;feature=emb_logo&quot;&gt;talks&lt;/a&gt;, but basically the reason is that all the recent defenses and detections we have seen around PowerShell target &lt;strong&gt;PowerShell itself&lt;/strong&gt;. They do not target the underlying .NET framework. Since C# is another .NET language, and arguably the most commonly known, this became the new offensive language of choice.&lt;/p&gt;
+
+&lt;p&gt;While there are new defenses such as AMSI updates coming to .NET 4.8, these are not present in prior .NET versions, which are running on most Windows hosts today.&lt;/p&gt;
+
+&lt;p&gt;Slides from Marcello’s BSides Talk:&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/BYOI/languages.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;h1 id=&quot;downsides-to-c&quot;&gt;Downsides to C#&lt;/h1&gt;
+
+&lt;p&gt;While C# can be a very powerful language, (and in theory can do anything PowerShell can do as it is built on the same framework), the largest downside is that to execute C# code, it must be compiled into an assembly, such as an EXE or DLL. This generally takes more time and must be re-compiled whenever a change is made. While these assemblies can be loaded reflectively into memory, many times, you may need to drop the file onto disk if this option is unavailable.&lt;/p&gt;
+
+&lt;p&gt;While these features are not deal-breakers, they are simply not as easy as loading a remote PowerShell script into memory and executing.&lt;/p&gt;
+
+&lt;h1 id=&quot;bring-your-own-interpreter&quot;&gt;Bring Your Own Interpreter&lt;/h1&gt;
+
+&lt;p&gt;How does BYOI come into all of this? Remember the point above that .NET assemblies can be executed by &lt;strong&gt;&lt;em&gt;ANY&lt;/em&gt;&lt;/strong&gt; .NET language? Because of this fact, any .NET language can be embedded in any other .NET language. There is no limit to how much embedding can be done. 
+For example,&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;C# can be run in PowerShell&lt;/li&gt;
+  &lt;li&gt;PowerShell can be run within IronPython&lt;/li&gt;
+  &lt;li&gt;IronPython can be run within PowerShell within C#&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;This is the idea that &lt;strong&gt;&lt;em&gt;Bring Your Own Interpreter&lt;/em&gt;&lt;/strong&gt; is built on. You can use a built-in Windows .NET language, such as C# or PowerShell to execute other .NET languages, and even in memory depending on the third-party language constraints.&lt;/p&gt;
+
+&lt;h1 id=&quot;boo&quot;&gt;Boo!&lt;/h1&gt;
+
+&lt;p&gt;So, .NET languages can be embedded in each other, but which one do you choose? From an offensive perspective, we would want a language that can compile to memory and be able to support &lt;a href=&quot;https://docs.microsoft.com/en-us/dotnet/standard/native-interop/pinvoke&quot;&gt;PInvoke&lt;/a&gt;, which is the ability to run unmanaged code (code not based in .NET, think importing non-.NET DLLs for example).&lt;/p&gt;
+
+&lt;p&gt;With the current research on the topic, &lt;a href=&quot;https://github.com/boo-lang/boo&quot;&gt;Boolang&lt;/a&gt; seems to be the best language found (so far) to suit these needs. Boolang was developed in 2009 by Rodrigo B. de Oliveira. It is built on the .NET framework and its syntax is inspired by Python. If you work with the code, it feels like a cross between C# and Python. It can import unmanaged code and compile everything to memory. This is ideal from an offensive perspective because as soon as the code runs, it is gone. No evidence is left on disk, and there is a very minimal amount of information left in memory.&lt;/p&gt;
+
+&lt;h1 id=&quot;making-your-interpreter&quot;&gt;Making Your Interpreter&lt;/h1&gt;
+
+&lt;p&gt;Now we have the base knowledge and .NET language we want to use, let’s investigate how we embed the languages and make our interpreter.&lt;/p&gt;
+
+&lt;h2 id=&quot;download-boolang&quot;&gt;Download Boolang&lt;/h2&gt;
+
+&lt;p&gt;Go to the official &lt;a href=&quot;https://github.com/boo-lang/boo/releases&quot;&gt;GitHub page&lt;/a&gt; and download the latest release of the programming language. The reason we need to do this is because there are 4 DLLs that need to be imported into our C# code to compile and execute the Boolang code. These are:&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Boo.Lang.dll&lt;/li&gt;
+  &lt;li&gt;Boo.Lang.Parser.dll&lt;/li&gt;
+  &lt;li&gt;Boo.Lang.Extensions.dll&lt;/li&gt;
+  &lt;li&gt;Boo.Lang.Compiler.dll&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;These DLLs can be put on the host, imported dynamically from the C# code, or even packed into the final compiled executable.&lt;/p&gt;
+
+&lt;p&gt;If you are interested, I encourage you to read the code documentation and learn how it runs independently of C#, but it will not be covered in the scope of this paper.&lt;/p&gt;
+
+&lt;h1 id=&quot;create-the-c-compiler&quot;&gt;Create the C# Compiler&lt;/h1&gt;
+
+&lt;p&gt;Let’s create a simple Boolang script. You can do this by opening your favorite text editor and creating a file named “&lt;em&gt;script.boo&lt;/em&gt;” (or whatever you like).&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/BYOI/scriptboo.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;For the proof of concept, we will use the official Boolang Compiler &lt;a href=&quot;https://github.com/boo-lang/boo/wiki/Scripting-with-the-Boo.Lang.Compiler-API&quot;&gt;API code&lt;/a&gt; to run Boolang from C#, with a few modifications to call our Main class and &lt;em&gt;MainScript&lt;/em&gt; method.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/BYOI/script-code.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Alright, let’s run it.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/BYOI/runboo.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;We have successfully embedded a .NET language in another, compiled it, and executed it in memory!&lt;/p&gt;
+
+&lt;h1 id=&quot;remote-scripting&quot;&gt;Remote Scripting&lt;/h1&gt;
+
+&lt;p&gt;You may be thinking, this is cool, but now I must drop TWO files to disk. Well, let’s build on our code a little. We can use the &lt;em&gt;WebClient&lt;/em&gt; class to get a remote URL and read in a remote script.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/BYOI/remote-code.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Now we will host a remote script named “script” (the .boo extension isn’t necessary) at:&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;&lt;em&gt;http://pc-tech.pro/script&lt;/em&gt;&lt;/strong&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/BYOI/pctech-script.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Let’s run it.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/BYOI/run-remote-boo.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Now, we have a fully functioning assembly that we can execute on the target host and compile ANY remote script we want to memory and execute it. There are some great offensive implications to this:&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Flexibility
+    &lt;ul&gt;
+      &lt;li&gt;No compiling needed every time you want to execute a script, just pull-down source code (like the PowerShell days)&lt;/li&gt;
+      &lt;li&gt;Can run any script, using the same executable&lt;/li&gt;
+    &lt;/ul&gt;
+  &lt;/li&gt;
+  &lt;li&gt;OPSEC (Operations Security)
+    &lt;ul&gt;
+      &lt;li&gt;Since it is compiled to memory, no traces of the script are left on disc&lt;/li&gt;
+      &lt;li&gt;Even in memory, it leaves a very minimal footprint as it is discarded after use&lt;/li&gt;
+      &lt;li&gt;From an analysis perspective, you would only see a non-malicious C# compiler spinning up and executing, making a single network connection&lt;/li&gt;
+      &lt;li&gt;Only need to drop one file to disk (unless you reflectively load it or use other techniques)&lt;/li&gt;
+      &lt;li&gt;Bypasses AMSI in .NET &amp;lt; 4.8 and other protections seen in PowerShell&lt;/li&gt;
+    &lt;/ul&gt;
+  &lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h1 id=&quot;bypassing-protections&quot;&gt;Bypassing Protections&lt;/h1&gt;
+
+&lt;p&gt;As mentioned previously, BYOI tactics have the ability to bypass AMSI, but what does that mean? &lt;a href=&quot;https://docs.microsoft.com/en-us/windows/win32/amsi/antimalware-scan-interface-portal&quot;&gt;AMSI&lt;/a&gt; is the Windows Antimalware Scan Interface and allows applications and services to integrate with any antimalware product on the host. Some common windows components that integrate with AMSI are:&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;User Account Control, or UAC (elevation of EXE, COM, MSI, or ActiveX installation)&lt;/li&gt;
+  &lt;li&gt;PowerShell (scripts, interactive use, and dynamic code evaluation)&lt;/li&gt;
+  &lt;li&gt;Windows Script Host (wscript.exe and cscript.exe)&lt;/li&gt;
+  &lt;li&gt;JavaScript and VBScript&lt;/li&gt;
+  &lt;li&gt;Office VBA macros&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;Basically, anything that is executed in an AMSI integrated component will be ran through the host’s antivirus program. To demonstrate this, there is a certain test string that can trigger AMSI:&lt;/p&gt;
+
+&lt;p&gt;&lt;em&gt;Invoke-Expression ‘AMSI Test Sample: 7e72c3ce-861b-4339-8740-0ac1484c1386’&lt;/em&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/BYOI/amsi1.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;In theory, anything that calls this string that is integrated with AMSI, should trigger a malware detection. We are going to create 2 scripts that call this string. One will be a PowerShell script; one will be an embedded Boolang script. Both will be hosted remotely. For all intents and purposes, they will do the same thing, which is printing the test string.&lt;/p&gt;
+
+&lt;h1 id=&quot;powershell&quot;&gt;PowerShell&lt;/h1&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/BYOI/amsi2.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/BYOI/amsi3.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;h1 id=&quot;boolang&quot;&gt;Boolang&lt;/h1&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/BYOI/amsi4.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/BYOI/amsi5.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;As you can see, we have just executed our “malicious” Boolang script in memory, without getting caught by AMSI, while it was immediately caught in PowerShell.&lt;/p&gt;
+
+&lt;h1 id=&quot;what-about-edr&quot;&gt;What About EDR?&lt;/h1&gt;
+
+&lt;p&gt;EDR is typically much more powerful than the built-in AV on Windows, so what does the execution look like in these tools? Again, we will just run our “Hello Boolang” script in memory from a remote source.&lt;/p&gt;
+
+&lt;p&gt;The first thing we notice is an informational alert saying the file meets the &lt;strong&gt;lowest-confidence&lt;/strong&gt; threshold for a malicious file. This may vary from EDR to EDR, as this alert was based on this specific EDR’s own built in detections and custom rules. Ideally, we would want no detection, but overall, not bad for the first try with no obfuscation.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/BYOI/edr1.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/BYOI/edr2.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;The following are the detection details from the process tree. As we can see, no files were quarantined, and no AV detections are present. Only network operations to our server and DLL loads were observed. Nothing from an analysis perspective that immediately sparks malicious actions.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/BYOI/edr3.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/BYOI/edr4.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/BYOI/edr5.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;h1 id=&quot;mimikatz&quot;&gt;Mimikatz&lt;/h1&gt;
+
+&lt;p&gt;Let’s try doing something that is actually malicious on the host through our Boolang interpreter. Breaking down the below Boolang script, we are going to load in the 32-bit or 64-bit SharpSploit Mimikatz DLL (depending on architecture) with only Base64 encoding. We will then execute it in memory and print the results of “&lt;em&gt;privilege::debug sekurlsa::logonpasswords&lt;/em&gt;”.&lt;/p&gt;
+
+&lt;p&gt;Specifically, this DLL (well known, definitely malicious):&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/BYOI/virustotal.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/BYOI/vscode.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;When we run it, we see that the EDR did in fact catch and terminate the program, but what did it actually detect?&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/BYOI/edr6.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Looking at the alert, it triggered a High severity alert, &lt;strong&gt;ONLY&lt;/strong&gt; because we touched LSASS. (No matter how stealthy a program is, it would get caught for touching LSASS in this way). It did not alert because we loaded the script or DLL into memory or executed Mimikatz itself. We can see below, the only detections on the actual executable was that it still met the lowest-confidence threshold for malicious files.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/BYOI/edr7.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;When looking at the file details, we only see the same DLL loads and the network connections.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/BYOI/edr8.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/BYOI/edr9.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;h1 id=&quot;detections-and-mitigations&quot;&gt;Detections and Mitigations&lt;/h1&gt;
+
+&lt;p&gt;While there will likely be more detection in the future, there are not many great ways of detecting the actual execution of BYOI tradecraft currently. Below are a few points that could help in aiding detection/mitigation of this.&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;AMSI signatures for the third-party scripting languages. This is out of our control and we will have to see how Microsoft creates detections in AMSI for .NET 4.8. Likely, there will be work arounds until most edge cases are found. Similar to how the detections for PowerShell evolved&lt;/li&gt;
+  &lt;li&gt;Detecting .NET scripting language assemblies being loaded in a managed processes’ AppDomain through technologies such as Event tracing for Windows&lt;/li&gt;
+  &lt;li&gt;Application whitelisting to block unknown or unapproved files from being executed on the host&lt;/li&gt;
+  &lt;li&gt;Focusing on TTPs (Tactics, Techniques, and Procedures) to catch the malicious behavior. For example, the EDR did not detect the file or the execution, but it did catch the act of touching LSASS.&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h1 id=&quot;in-conclusion&quot;&gt;In Conclusion&lt;/h1&gt;
+
+&lt;p&gt;With the increasing detections and alerting around tools such as PowerShell, Bring Your Own Interpreter style tradecraft as well as spin offs will likely become more prevalent in advanced attacks. Until more detections and controls are developed into the underlying techniques, it is important to have robust and up to date malware signatures (more so TTPs than hashes/IP IOCs), application white lists, and tools to add additional visibility such as EDR technology.&lt;/p&gt;</content><author><name>Zach Stein</name></author><summary type="html">Preface These techniques that will be discussed in this paper were not discovered by myself. This technique was made popular by Marcello Salvati, a red teamer at Black Hills Information Security. He published an article on the topic that can be found on the Black Hills blog. SILENTTRINITY is his C2 (command and control) implementation of the concept. Be sure to check out his work. The purpose of this paper is to break down the concepts in a way that is (hopefully) easy to understand and increase awareness into the new offensive landscape when it comes to tooling and detection. The (Offensive) Problem Set In the not so distant past, red teamers and malicious actors alike loved to utilize PowerShell for their offensive scripts, C2 channels, malware, basically everything. It was built into modern Windows operating systems by default, could pull down remote scripts, execute in memory, and was basically invisible due to lack of controls in place. In the last couple years, defensive products and Microsoft caught on to the abuse of this scripting language. After PowerShell v1, protections started being integrated such as Transcript logging, Script Block Logging, Module Logging, and AMSI. Products such as EDRs started creating rules that looked for certain strings/commands, such as using “IEX (New-Object Net.WebClient).DownloadString” to download remote scripts or “exec bypass” to import custom scripts. Some environments block PowerShell altogether or alert anytime it is used. While PowerShell may not be completely “dead”, as there are always new bypasses, it has become more trouble than it is worth in most red team engagements (and likely advanced threat actor campaigns). It has become high risk from a stealth perspective with all the detections associated with it. What is PowerShell? Why did it Work so Well? PowerShell was built by Microsoft for task automation and configuration management, with its own scripting language. The reason it was able to be integrated into virtually all new Windows operating systems is that it is built upon the .NET Framework. The best/easiest explanation I could find for the .NET Framework can be found here. The quick one sentence summary of this framework is that it is a shared library of code that contains Application Programming Interfaces (APIs) used to develop applications that can be used in programming languages. The important thing to note, is that the .NET Framework is not specific to any language. There are many different languages that utilize the framework to function. The .NET Framework is the backbone for many common Microsoft programming languages you may know, including (but certainly are not limited to): C# F# Visual Basic PowerShell IronPython IronRuby PowerShell and C# are built into Windows by default, so it makes them very easy to use and execute without any external DLLs. There are even many third-party programming languages as well. If you wanted to, you could create your own language from the .NET framework. .NET Assemblies are the results of compiling a .NET language. Think of an EXE or DLL when you compile a C# program, these are .NET assemblies. These assemblies can be executed by ANY .NET language and can be loaded reflectively in memory using .NET’s Assembly.Load(). Remember these points moving forward in this paper. Offensive Tooling Shift If you follow the offensive tooling community, you may have noticed a shift in methods, where C# is now the go-to language over PowerShell. Many of the common PowerShell tools have been ported to the C#. PowerShell Tool -&amp;gt; C# Tool PowerUp -&amp;gt; SharpUp BloodHound -&amp;gt; SharpHound PowerView -&amp;gt; SharpView MimiKatz -&amp;gt; SafetyKatz The reason for this is best described in Marcello’s talks, but basically the reason is that all the recent defenses and detections we have seen around PowerShell target PowerShell itself. They do not target the underlying .NET framework. Since C# is another .NET language, and arguably the most commonly known, this became the new offensive language of choice. While there are new defenses such as AMSI updates coming to .NET 4.8, these are not present in prior .NET versions, which are running on most Windows hosts today. Slides from Marcello’s BSides Talk: Downsides to C# While C# can be a very powerful language, (and in theory can do anything PowerShell can do as it is built on the same framework), the largest downside is that to execute C# code, it must be compiled into an assembly, such as an EXE or DLL. This generally takes more time and must be re-compiled whenever a change is made. While these assemblies can be loaded reflectively into memory, many times, you may need to drop the file onto disk if this option is unavailable. While these features are not deal-breakers, they are simply not as easy as loading a remote PowerShell script into memory and executing. Bring Your Own Interpreter How does BYOI come into all of this? Remember the point above that .NET assemblies can be executed by ANY .NET language? Because of this fact, any .NET language can be embedded in any other .NET language. There is no limit to how much embedding can be done. For example, C# can be run in PowerShell PowerShell can be run within IronPython IronPython can be run within PowerShell within C# This is the idea that Bring Your Own Interpreter is built on. You can use a built-in Windows .NET language, such as C# or PowerShell to execute other .NET languages, and even in memory depending on the third-party language constraints. Boo! So, .NET languages can be embedded in each other, but which one do you choose? From an offensive perspective, we would want a language that can compile to memory and be able to support PInvoke, which is the ability to run unmanaged code (code not based in .NET, think importing non-.NET DLLs for example). With the current research on the topic, Boolang seems to be the best language found (so far) to suit these needs. Boolang was developed in 2009 by Rodrigo B. de Oliveira. It is built on the .NET framework and its syntax is inspired by Python. If you work with the code, it feels like a cross between C# and Python. It can import unmanaged code and compile everything to memory. This is ideal from an offensive perspective because as soon as the code runs, it is gone. No evidence is left on disk, and there is a very minimal amount of information left in memory. Making Your Interpreter Now we have the base knowledge and .NET language we want to use, let’s investigate how we embed the languages and make our interpreter. Download Boolang Go to the official GitHub page and download the latest release of the programming language. The reason we need to do this is because there are 4 DLLs that need to be imported into our C# code to compile and execute the Boolang code. These are: Boo.Lang.dll Boo.Lang.Parser.dll Boo.Lang.Extensions.dll Boo.Lang.Compiler.dll These DLLs can be put on the host, imported dynamically from the C# code, or even packed into the final compiled executable. If you are interested, I encourage you to read the code documentation and learn how it runs independently of C#, but it will not be covered in the scope of this paper. Create the C# Compiler Let’s create a simple Boolang script. You can do this by opening your favorite text editor and creating a file named “script.boo” (or whatever you like). For the proof of concept, we will use the official Boolang Compiler API code to run Boolang from C#, with a few modifications to call our Main class and MainScript method. Alright, let’s run it. We have successfully embedded a .NET language in another, compiled it, and executed it in memory! Remote Scripting You may be thinking, this is cool, but now I must drop TWO files to disk. Well, let’s build on our code a little. We can use the WebClient class to get a remote URL and read in a remote script. Now we will host a remote script named “script” (the .boo extension isn’t necessary) at: http://pc-tech.pro/script Let’s run it. Now, we have a fully functioning assembly that we can execute on the target host and compile ANY remote script we want to memory and execute it. There are some great offensive implications to this: Flexibility No compiling needed every time you want to execute a script, just pull-down source code (like the PowerShell days) Can run any script, using the same executable OPSEC (Operations Security) Since it is compiled to memory, no traces of the script are left on disc Even in memory, it leaves a very minimal footprint as it is discarded after use From an analysis perspective, you would only see a non-malicious C# compiler spinning up and executing, making a single network connection Only need to drop one file to disk (unless you reflectively load it or use other techniques) Bypasses AMSI in .NET &amp;lt; 4.8 and other protections seen in PowerShell Bypassing Protections As mentioned previously, BYOI tactics have the ability to bypass AMSI, but what does that mean? AMSI is the Windows Antimalware Scan Interface and allows applications and services to integrate with any antimalware product on the host. Some common windows components that integrate with AMSI are: User Account Control, or UAC (elevation of EXE, COM, MSI, or ActiveX installation) PowerShell (scripts, interactive use, and dynamic code evaluation) Windows Script Host (wscript.exe and cscript.exe) JavaScript and VBScript Office VBA macros Basically, anything that is executed in an AMSI integrated component will be ran through the host’s antivirus program. To demonstrate this, there is a certain test string that can trigger AMSI: Invoke-Expression ‘AMSI Test Sample: 7e72c3ce-861b-4339-8740-0ac1484c1386’ In theory, anything that calls this string that is integrated with AMSI, should trigger a malware detection. We are going to create 2 scripts that call this string. One will be a PowerShell script; one will be an embedded Boolang script. Both will be hosted remotely. For all intents and purposes, they will do the same thing, which is printing the test string. PowerShell Boolang As you can see, we have just executed our “malicious” Boolang script in memory, without getting caught by AMSI, while it was immediately caught in PowerShell. What About EDR? EDR is typically much more powerful than the built-in AV on Windows, so what does the execution look like in these tools? Again, we will just run our “Hello Boolang” script in memory from a remote source. The first thing we notice is an informational alert saying the file meets the lowest-confidence threshold for a malicious file. This may vary from EDR to EDR, as this alert was based on this specific EDR’s own built in detections and custom rules. Ideally, we would want no detection, but overall, not bad for the first try with no obfuscation. The following are the detection details from the process tree. As we can see, no files were quarantined, and no AV detections are present. Only network operations to our server and DLL loads were observed. Nothing from an analysis perspective that immediately sparks malicious actions. Mimikatz Let’s try doing something that is actually malicious on the host through our Boolang interpreter. Breaking down the below Boolang script, we are going to load in the 32-bit or 64-bit SharpSploit Mimikatz DLL (depending on architecture) with only Base64 encoding. We will then execute it in memory and print the results of “privilege::debug sekurlsa::logonpasswords”. Specifically, this DLL (well known, definitely malicious): When we run it, we see that the EDR did in fact catch and terminate the program, but what did it actually detect? Looking at the alert, it triggered a High severity alert, ONLY because we touched LSASS. (No matter how stealthy a program is, it would get caught for touching LSASS in this way). It did not alert because we loaded the script or DLL into memory or executed Mimikatz itself. We can see below, the only detections on the actual executable was that it still met the lowest-confidence threshold for malicious files. When looking at the file details, we only see the same DLL loads and the network connections. Detections and Mitigations While there will likely be more detection in the future, there are not many great ways of detecting the actual execution of BYOI tradecraft currently. Below are a few points that could help in aiding detection/mitigation of this. AMSI signatures for the third-party scripting languages. This is out of our control and we will have to see how Microsoft creates detections in AMSI for .NET 4.8. Likely, there will be work arounds until most edge cases are found. Similar to how the detections for PowerShell evolved Detecting .NET scripting language assemblies being loaded in a managed processes’ AppDomain through technologies such as Event tracing for Windows Application whitelisting to block unknown or unapproved files from being executed on the host Focusing on TTPs (Tactics, Techniques, and Procedures) to catch the malicious behavior. For example, the EDR did not detect the file or the execution, but it did catch the act of touching LSASS. In Conclusion With the increasing detections and alerting around tools such as PowerShell, Bring Your Own Interpreter style tradecraft as well as spin offs will likely become more prevalent in advanced attacks. Until more detections and controls are developed into the underlying techniques, it is important to have robust and up to date malware signatures (more so TTPs than hashes/IP IOCs), application white lists, and tools to add additional visibility such as EDR technology.</summary></entry><entry><title type="html">SSL/TLS Tunneling to Bypass Filters &amp;amp; Avoid Detection</title><link href="http://localhost:4000/Tunneling-Traffic-With-SSL-and-TLS/" rel="alternate" type="text/html" title="SSL/TLS Tunneling to Bypass Filters &amp; Avoid Detection" /><published>2020-10-14T00:00:00-04:00</published><updated>2020-10-14T00:00:00-04:00</updated><id>http://localhost:4000/Tunneling-Traffic-With-SSL-and-TLS</id><content type="html" xml:base="http://localhost:4000/Tunneling-Traffic-With-SSL-and-TLS/">&lt;p&gt;In certain environments, controls such as firewalls are in place that restrict outbound ports and protocols. For example, maybe only web traffic over ports 80 (HTTP) and 443 (HTTPS) are allowed outbound from a given workstation.&lt;/p&gt;
+
+&lt;p&gt;In campaigns I have performed, I have had scenarios where we needed to control a device remotely (such as a raspberry pi) where direct terminal access would be ideal (such as SSH). But this requires an established external connection, where there are a few issues to consider:&lt;/p&gt;
+
+&lt;ol&gt;
+  &lt;li&gt;Outbound SSH over port 22 may be blocked&lt;/li&gt;
+  &lt;li&gt;Outbound SSH traffic over a non-standard port (22) may be blocked&lt;/li&gt;
+  &lt;li&gt;Even if neither of the above is blocked, anomalous outbound SSH traffic on any port is suspicious and may trigger alerts and/or attract unwanted attention from a threat hunter or analyst&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;p&gt;What is a solution to this? Tunneling!&lt;/p&gt;
+
+&lt;p&gt;As an attacker we always want to make any inbound/outbound traffic look as normal as possible to ensure the operational security of our campaign. As the most common outbound traffic is likely web traffic, lets emulate this. There are a few tools we can use to make this happen. Best part is they are free and open source.&lt;/p&gt;
+
+&lt;h1 id=&quot;socat&quot;&gt;Socat&lt;/h1&gt;
+
+&lt;p&gt;The first step in emulating web traffic, is making our communication speak the same protocol as the normal traffic. HTTPS traffic (encrypted HTTP) uses &lt;a href=&quot;https://www.websecurity.digicert.com/security-topics/what-is-ssl-tls-https&quot;&gt;SSL/TLS&lt;/a&gt; (Secure Socket Layer/ Transport Layer Security) encryption to ensure that all communication between the web browser and the web server are safe from a third party seeing what is being transferred. Any website where you see the lock icon next to the URL is using such encryption to protect your data. TLS is the preferred method, as TLS is an updated more secure version of SSL.&lt;/p&gt;
+
+&lt;p&gt;How does this benefit an attacker? Since these protocols encrypt the traffic within them, if we can use SSL/TLS to encapsulate SSH traffic, the SSH traffic would be shielded from detection (unless there is a security device in the middle that can decrypt the SSL/TLS traffic).&lt;/p&gt;
+
+&lt;p&gt;This is where &lt;a href=&quot;https://medium.com/@copyconstruct/socat-29453e9fc8a6&quot;&gt;Socat&lt;/a&gt; comes into play. Socat is a tool that is used to transfer data between two addresses using a desired protocol. Since we want to communicate with our C2 server using TLS, we can create this transfer pipe using &lt;a href=&quot;https://www.openssl.org/&quot;&gt;OpenSSL&lt;/a&gt;. For our demonstration, we will use our ‘&lt;em&gt;pc-tech.pro&lt;/em&gt;’ domain for C2 (Ubuntu server hosted in Amazon AWS).&lt;/p&gt;
+
+&lt;p&gt;1) Install Socat on implanted/rogue device (&lt;em&gt;Sudo apt install socat&lt;/em&gt;)&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Tunneling-Traffic-With-SSL-and-TLS/socat-install.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;2) Modify our SSH config file for our user to use &lt;em&gt;ProxyCommand&lt;/em&gt; to establish a tunnel using OpenSSL to our C2 domain using port 443.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Tunneling-Traffic-With-SSL-and-TLS/ssh-config.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;What this configuration does, is that for any SSH connection to ‘&lt;em&gt;pc-tech.pro&lt;/em&gt;’ socat will be used to create a TLS tunnel using the site’s certificates for the SSH traffic to be encapsulated in.&lt;/p&gt;
+
+&lt;h1 id=&quot;stunnel&quot;&gt;Stunnel&lt;/h1&gt;
+
+&lt;p&gt;Now that we have a means of encapsulating SSH traffic to our C2 server, we need something to receive and decrypt the traffic. For this, we will use the tool &lt;a href=&quot;https://www.stunnel.org/&quot;&gt;Stunnel&lt;/a&gt;. In short, Stunnel is a tool designed to add TLS encryption to applications that do not speak the protocols natively. In our case, it will be used to host the TLS certificates used for our encapsulation, decode incoming traffic, and forward the traffic to another port.&lt;/p&gt;
+
+&lt;p&gt;1) The first step in our configuration is to install the software on the C2 server: (&lt;em&gt;Sudo apt install stunnel4&lt;/em&gt;)&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Tunneling-Traffic-With-SSL-and-TLS/stunnel-install.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;2) Set up the configuration file (/etc/stunnel/stunnel.conf):
+&lt;em&gt;*This will need to be created as it does not exist by default*&lt;/em&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Tunneling-Traffic-With-SSL-and-TLS/stunnel-config.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Breaking this down by line:&lt;/p&gt;
+
+&lt;ol&gt;
+  &lt;li&gt;Set pid for the process&lt;/li&gt;
+  &lt;li&gt;Add TLS certificate&lt;/li&gt;
+  &lt;li&gt;Add TLS key&lt;/li&gt;
+  &lt;li&gt;Define rules for specified traffic type (SSH for us)
+    &lt;ul&gt;
+      &lt;li&gt;Listen on all interfaces on port 443 (HTTPS)&lt;/li&gt;
+      &lt;li&gt;Forward &amp;amp; decrypt all incoming SSH traffic to port 443 to a port of your choice (2222 for us)&lt;/li&gt;
+    &lt;/ul&gt;
+  &lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;p&gt;For our TLS certificates, we used Let’s Encrypt certificates that can be used for webpages. Setting these up are outside the scope of this paper, but you can read more about this on their &lt;a href=&quot;https://letsencrypt.org/getting-started/&quot;&gt;website&lt;/a&gt;.&lt;/p&gt;
+
+&lt;p&gt;3) Enable Stunnel in config (/etc/default/stunnel4):&lt;/p&gt;
+
+&lt;p&gt;&lt;em&gt;*By default, the service is not enabled. To enable it change “Enabled=0” to “Enabled=1”*&lt;/em&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Tunneling-Traffic-With-SSL-and-TLS/stunnel-enable.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;4) Start service: (&lt;em&gt;Sudo service stunnel start&lt;/em&gt;)&lt;/p&gt;
+
+&lt;p&gt;The following diagram is a visual of the steps we have taken so far:&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Tunneling-Traffic-With-SSL-and-TLS/drawio.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;You may be asking, “Why are we forwarding traffic to port 2222 instead of standard SSH (port 22)?”&lt;/p&gt;
+
+&lt;p&gt;This is because we are going to be hosting 3 services off this one port. SSH, HTTP, and HTTPS. This way, if we visit port 443 with a web browser, it will display a webpage to the user, while if we hit port 443 with SSH traffic, it will establish an SSH tunnel. This is done to avoid detection from an analyst and/or sandbox.This is where we get into our final tool, SSLH.&lt;/p&gt;
+
+&lt;h1 id=&quot;sslh&quot;&gt;SSLH&lt;/h1&gt;
+
+&lt;p&gt;&lt;a href=&quot;http://www.rutschle.net/tech/sslh/README.html&quot;&gt;SSLH&lt;/a&gt; is a “SSL/SSH Multiplexer” that acts like a switchboard for protocols it receives. It can be configured with any protocol that can be recognized with regular expressions. Simply put, depending on what traffic it receives, it will forward the traffic to a different port, based on the protocol. For our example, the following routes will be created.&lt;/p&gt;
+
+&lt;ol&gt;
+  &lt;li&gt;If SSLH receives SSH traffic, forward to port 22&lt;/li&gt;
+  &lt;li&gt;If SSLH receives HTTP traffic, forward to port 8080&lt;/li&gt;
+  &lt;li&gt;If SSLH receives HTTPS traffic, forward to port 8443&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;p&gt;To configure our server to use this tool, we will take the following steps:&lt;/p&gt;
+
+&lt;p&gt;1)	Install the tool on our C2 server: (&lt;em&gt;Sudo apt install sslh&lt;/em&gt;)&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Tunneling-Traffic-With-SSL-and-TLS/sslh-install.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;2)	Edit the configuration file in /etc/default/sslh:&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Tunneling-Traffic-With-SSL-and-TLS/sslh-config.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Breaking this down:&lt;/p&gt;
+&lt;ol&gt;
+  &lt;li&gt;Ensure “RUN” is set to “yes”&lt;/li&gt;
+  &lt;li&gt;Set “—listen” to the port we are forwarding Stunnel traffic to (port 2222). This is the port SSLH will be running on&lt;/li&gt;
+  &lt;li&gt;For SSH traffic, forward to localhost, port 22&lt;/li&gt;
+  &lt;li&gt;For SSL/TLS traffic, forward to localhost, port 8443&lt;/li&gt;
+  &lt;li&gt;For HTTP traffic, forward to localhost, port 8080&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;p&gt;3)	Start the service: (&lt;em&gt;Sudo service sslh start&lt;/em&gt;)&lt;/p&gt;
+
+&lt;p&gt;Now the only thing we need to do to complete our tunneling infrastructure is to set up our SSH and web services.&lt;/p&gt;
+
+&lt;h1 id=&quot;configuring-web-service-and-ssh&quot;&gt;Configuring Web Service and SSH&lt;/h1&gt;
+
+&lt;p&gt;To serve web content to browsers, we will use an Apache web service on our C2 server (although any webserver will do).&lt;/p&gt;
+
+&lt;p&gt;1)	In your desired web server port configuration, point HTTP and HTTPS to the ports configured in SSLH.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Tunneling-Traffic-With-SSL-and-TLS/apache-config.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;2)	Start Web Server&lt;/p&gt;
+
+&lt;p&gt;For SSH, we will use the standard SSH service (&lt;em&gt;Sudo service ssh start&lt;/em&gt;)&lt;/p&gt;
+
+&lt;p&gt;Now, if everything worked correctly, we should see all our ports listening accordingly:&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Tunneling-Traffic-With-SSL-and-TLS/listening-ports.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;h1 id=&quot;testing-the-configuration&quot;&gt;Testing the Configuration&lt;/h1&gt;
+
+&lt;p&gt;The following diagram is a visual of what the final configuration should look like. All return traffic in will be encapsulated in the TLS tunnel as well.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Tunneling-Traffic-With-SSL-and-TLS/drawio2.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;h1 id=&quot;web-traffic&quot;&gt;Web Traffic&lt;/h1&gt;
+
+&lt;p&gt;When visiting the site in a browser, we see a normal looking website that can host any content we desire:&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Tunneling-Traffic-With-SSL-and-TLS/totally-legit1.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Wireshark Capture:&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Tunneling-Traffic-With-SSL-and-TLS/totally-legit2.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Tunneling-Traffic-With-SSL-and-TLS/totally-legit3.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;h1 id=&quot;ssh-traffic&quot;&gt;SSH Traffic&lt;/h1&gt;
+
+&lt;p&gt;When we SSH to port 443 of the server, the socat OpenSSL tunnel is created, and we can SSH over the same port our web traffic hit above (the -p443 is not needed as it is in our socat config, just used to explicitly show the port we are connecting to):&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Tunneling-Traffic-With-SSL-and-TLS/ssh1.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Tunneling-Traffic-With-SSL-and-TLS/ssh2.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Tunneling-Traffic-With-SSL-and-TLS/ssh3.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;In both cases, the traffic looks like TLS encrypted web traffic.&lt;/p&gt;
+
+&lt;h1 id=&quot;optimizing-for-offensive-operations&quot;&gt;Optimizing for Offensive Operations&lt;/h1&gt;
+
+&lt;p&gt;Now that we have proven we can tunnel SSH traffic over TLS, we need to be able to access our implanted device at any time, from anywhere. To take it one step further, we will set up a reverse SSH tunnel to our C2 server, which we can access from our own device.&lt;/p&gt;
+
+&lt;p&gt;Host “Oasis” will simulate our rogue device. We will set up a reverse tunnel to our C2 server using SSH.&lt;/p&gt;
+
+&lt;p&gt;What the below command does, is open port 7777 on our C2 server to tunnel all traffic destined to port 7777 to the SSH port on the rogue device. All of this is encapsulated in our TLS tunnel.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Tunneling-Traffic-With-SSL-and-TLS/opt1.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Looking at the listening ports on our C2 server, we can see that this port is in-fact listening.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Tunneling-Traffic-With-SSL-and-TLS/opt2.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Now from our attacking machine, we can SSH to our C2 server, then SSH to our rogue device.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Tunneling-Traffic-With-SSL-and-TLS/opt3.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Tunneling-Traffic-With-SSL-and-TLS/opt4.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;The following is a diagram of what this traffic looks like, using the C2 server as a jump box into the target environment. This allows us to have terminal access to the host, while masquerading as HTTPS traffic to a normal website.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Tunneling-Traffic-With-SSL-and-TLS/drawio3.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;</content><author><name>Zach Stein</name></author><summary type="html">In certain environments, controls such as firewalls are in place that restrict outbound ports and protocols. For example, maybe only web traffic over ports 80 (HTTP) and 443 (HTTPS) are allowed outbound from a given workstation. In campaigns I have performed, I have had scenarios where we needed to control a device remotely (such as a raspberry pi) where direct terminal access would be ideal (such as SSH). But this requires an established external connection, where there are a few issues to consider: Outbound SSH over port 22 may be blocked Outbound SSH traffic over a non-standard port (22) may be blocked Even if neither of the above is blocked, anomalous outbound SSH traffic on any port is suspicious and may trigger alerts and/or attract unwanted attention from a threat hunter or analyst What is a solution to this? Tunneling! As an attacker we always want to make any inbound/outbound traffic look as normal as possible to ensure the operational security of our campaign. As the most common outbound traffic is likely web traffic, lets emulate this. There are a few tools we can use to make this happen. Best part is they are free and open source. Socat The first step in emulating web traffic, is making our communication speak the same protocol as the normal traffic. HTTPS traffic (encrypted HTTP) uses SSL/TLS (Secure Socket Layer/ Transport Layer Security) encryption to ensure that all communication between the web browser and the web server are safe from a third party seeing what is being transferred. Any website where you see the lock icon next to the URL is using such encryption to protect your data. TLS is the preferred method, as TLS is an updated more secure version of SSL. How does this benefit an attacker? Since these protocols encrypt the traffic within them, if we can use SSL/TLS to encapsulate SSH traffic, the SSH traffic would be shielded from detection (unless there is a security device in the middle that can decrypt the SSL/TLS traffic). This is where Socat comes into play. Socat is a tool that is used to transfer data between two addresses using a desired protocol. Since we want to communicate with our C2 server using TLS, we can create this transfer pipe using OpenSSL. For our demonstration, we will use our ‘pc-tech.pro’ domain for C2 (Ubuntu server hosted in Amazon AWS). 1) Install Socat on implanted/rogue device (Sudo apt install socat) 2) Modify our SSH config file for our user to use ProxyCommand to establish a tunnel using OpenSSL to our C2 domain using port 443. What this configuration does, is that for any SSH connection to ‘pc-tech.pro’ socat will be used to create a TLS tunnel using the site’s certificates for the SSH traffic to be encapsulated in. Stunnel Now that we have a means of encapsulating SSH traffic to our C2 server, we need something to receive and decrypt the traffic. For this, we will use the tool Stunnel. In short, Stunnel is a tool designed to add TLS encryption to applications that do not speak the protocols natively. In our case, it will be used to host the TLS certificates used for our encapsulation, decode incoming traffic, and forward the traffic to another port. 1) The first step in our configuration is to install the software on the C2 server: (Sudo apt install stunnel4) 2) Set up the configuration file (/etc/stunnel/stunnel.conf): *This will need to be created as it does not exist by default* Breaking this down by line: Set pid for the process Add TLS certificate Add TLS key Define rules for specified traffic type (SSH for us) Listen on all interfaces on port 443 (HTTPS) Forward &amp;amp; decrypt all incoming SSH traffic to port 443 to a port of your choice (2222 for us) For our TLS certificates, we used Let’s Encrypt certificates that can be used for webpages. Setting these up are outside the scope of this paper, but you can read more about this on their website. 3) Enable Stunnel in config (/etc/default/stunnel4): *By default, the service is not enabled. To enable it change “Enabled=0” to “Enabled=1”* 4) Start service: (Sudo service stunnel start) The following diagram is a visual of the steps we have taken so far: You may be asking, “Why are we forwarding traffic to port 2222 instead of standard SSH (port 22)?” This is because we are going to be hosting 3 services off this one port. SSH, HTTP, and HTTPS. This way, if we visit port 443 with a web browser, it will display a webpage to the user, while if we hit port 443 with SSH traffic, it will establish an SSH tunnel. This is done to avoid detection from an analyst and/or sandbox.This is where we get into our final tool, SSLH. SSLH SSLH is a “SSL/SSH Multiplexer” that acts like a switchboard for protocols it receives. It can be configured with any protocol that can be recognized with regular expressions. Simply put, depending on what traffic it receives, it will forward the traffic to a different port, based on the protocol. For our example, the following routes will be created. If SSLH receives SSH traffic, forward to port 22 If SSLH receives HTTP traffic, forward to port 8080 If SSLH receives HTTPS traffic, forward to port 8443 To configure our server to use this tool, we will take the following steps: 1) Install the tool on our C2 server: (Sudo apt install sslh) 2) Edit the configuration file in /etc/default/sslh: Breaking this down: Ensure “RUN” is set to “yes” Set “—listen” to the port we are forwarding Stunnel traffic to (port 2222). This is the port SSLH will be running on For SSH traffic, forward to localhost, port 22 For SSL/TLS traffic, forward to localhost, port 8443 For HTTP traffic, forward to localhost, port 8080 3) Start the service: (Sudo service sslh start) Now the only thing we need to do to complete our tunneling infrastructure is to set up our SSH and web services. Configuring Web Service and SSH To serve web content to browsers, we will use an Apache web service on our C2 server (although any webserver will do). 1) In your desired web server port configuration, point HTTP and HTTPS to the ports configured in SSLH. 2) Start Web Server For SSH, we will use the standard SSH service (Sudo service ssh start) Now, if everything worked correctly, we should see all our ports listening accordingly: Testing the Configuration The following diagram is a visual of what the final configuration should look like. All return traffic in will be encapsulated in the TLS tunnel as well. Web Traffic When visiting the site in a browser, we see a normal looking website that can host any content we desire: Wireshark Capture: SSH Traffic When we SSH to port 443 of the server, the socat OpenSSL tunnel is created, and we can SSH over the same port our web traffic hit above (the -p443 is not needed as it is in our socat config, just used to explicitly show the port we are connecting to): In both cases, the traffic looks like TLS encrypted web traffic. Optimizing for Offensive Operations Now that we have proven we can tunnel SSH traffic over TLS, we need to be able to access our implanted device at any time, from anywhere. To take it one step further, we will set up a reverse SSH tunnel to our C2 server, which we can access from our own device. Host “Oasis” will simulate our rogue device. We will set up a reverse tunnel to our C2 server using SSH. What the below command does, is open port 7777 on our C2 server to tunnel all traffic destined to port 7777 to the SSH port on the rogue device. All of this is encapsulated in our TLS tunnel. Looking at the listening ports on our C2 server, we can see that this port is in-fact listening. Now from our attacking machine, we can SSH to our C2 server, then SSH to our rogue device. The following is a diagram of what this traffic looks like, using the C2 server as a jump box into the target environment. This allows us to have terminal access to the host, while masquerading as HTTPS traffic to a normal website.</summary></entry><entry><title type="html">C2 Redirection For Offensive Operations</title><link href="http://localhost:4000/C2-Redirection-for-Offensive-Operations/" rel="alternate" type="text/html" title="C2 Redirection For Offensive Operations" /><published>2020-10-13T00:00:00-04:00</published><updated>2020-10-13T00:00:00-04:00</updated><id>http://localhost:4000/C2-Redirection-for-Offensive-Operations</id><content type="html" xml:base="http://localhost:4000/C2-Redirection-for-Offensive-Operations/">&lt;p&gt;When creating a command-and-control infrastructure, it is common for the callbacks to not communicate directly to the attacker’s C2 server. Many times, they will go through a compromised webpage, or a fake site used as a redirector. A redirector is basically a server that will take requests and forward them to another address, such as the real malicious server. This is to hide the underlying attacker address if the C2 traffic is ever discovered.&lt;/p&gt;
+
+&lt;p&gt;Have you ever analyzed a web address that was flagged as malicious, only to see a seemingly benign or a 404-error page? This may indicate that the page is not malicious or no longer existing, but it could also indicate the page is being used as a redirector/proxy.&lt;/p&gt;
+
+&lt;p&gt;Apache, Nginx, and other web servers have the ability to proxy/redirect traffic when desired conditions are met. This is useful from an attacking perspective as it can add an extra layer of obfuscation to an analyst observing the traffic.&lt;/p&gt;
+
+&lt;p&gt;To demonstrate this, we set up a public facing Apache server at domain “&lt;em&gt;pc-tech.pro&lt;/em&gt;” as a redirector and configured the &lt;a href=&quot;https://ithemes.com/what-is-the-htaccess-file/&quot;&gt;.htaccess&lt;/a&gt; file to proxy or redirect traffic based on different “rules”. This can be done through Apache’s &lt;a href=&quot;https://httpd.apache.org/docs/2.4/mod/mod_rewrite.htmlhttps://httpd.apache.org/docs/2.4/mod/mod_rewrite.html&quot;&gt;mod_rewrite&lt;/a&gt;.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/C2-Redirection-for-Offensive-Operations/htaccess.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;What the above .htaccess file does, is that every web request to our domain will be redirected or proxied based on the RewriteConditions. The logic of this file is as follows:&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;IF:&lt;/strong&gt;&lt;/p&gt;
+
+&lt;p&gt;1) If the requested URL is any of:&lt;/p&gt;
+&lt;ul&gt;
+  &lt;li&gt;d/ref=ab_sb_ns_1/7888-0262949/field-keywords=ads&lt;/li&gt;
+  &lt;li&gt;D15/afa/amzn.us.sr.aps&lt;/li&gt;
+  &lt;li&gt;about-us&lt;/li&gt;
+  &lt;li&gt;contact-us&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;&lt;strong&gt;AND:&lt;/strong&gt;&lt;/p&gt;
+
+&lt;p&gt;2) The user-agent string is:&lt;/p&gt;
+&lt;ul&gt;
+  &lt;li&gt;“Mozilla/5.0 (Windows NT 6.1; WOW64; Trident/7.0; rv:11.0) like Gecko”&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;&lt;strong&gt;THEN:&lt;/strong&gt;&lt;/p&gt;
+
+&lt;p&gt;3) Proxy traffic to http://13.59.197.154 (our Cobalt Strike server) at the requested URL&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;ELSE:&lt;/strong&gt;&lt;/p&gt;
+
+&lt;p&gt;4) Return a 302 (Found) response and redirect to &lt;em&gt;https://computertechpro.net&lt;/em&gt; (some other legitimate site) at the requested URL&lt;/p&gt;
+
+&lt;p&gt;To demonstrate how these rules work, we added a plugin to a Firefox web browser to change the user-agent in the requests. We then hosted a file on our Cobalt Strike attacker server to show what conditions need to be met to observe it.&lt;/p&gt;
+
+&lt;p&gt;&lt;ins&gt;&lt;strong&gt;Making a request with the incorrect user-agent, but correct URL:&lt;/strong&gt;&lt;/ins&gt;&lt;/p&gt;
+
+&lt;p&gt;Request: &lt;em&gt;http://pc-tech.pro/contact-us&lt;/em&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/C2-Redirection-for-Offensive-Operations/example1.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Request: &lt;em&gt;http://pc-tech.pro/d/ref=ab_sb_ns_1/7888-0262949/field-keywords=ads&lt;/em&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/C2-Redirection-for-Offensive-Operations/example2.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;ins&gt;&lt;strong&gt;Making a request with the correct user-agent and correct URL:&lt;/strong&gt;&lt;/ins&gt;&lt;/p&gt;
+
+&lt;p&gt;Request: &lt;em&gt;http://pc-tech.pro/contact-us&lt;/em&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/C2-Redirection-for-Offensive-Operations/example3.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;ins&gt;&lt;strong&gt;Making a request with any user-agent and incorrect URL:&lt;/strong&gt;&lt;/ins&gt;&lt;/p&gt;
+
+&lt;p&gt;Request: &lt;em&gt;http://pc-tech.pro/test&lt;/em&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/C2-Redirection-for-Offensive-Operations/example4.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;h1 id=&quot;modifying-for-c2-traffic&quot;&gt;Modifying for C2 traffic&lt;/h1&gt;
+
+&lt;p&gt;Within Cobalt Strike’s malleable C2 &lt;a href=&quot;https://www.cobaltstrike.com/help-malleable-c2&quot;&gt;framework&lt;/a&gt;, fields such as the user-agent and callback URLs can be modified based on the infrastructure needs. For this specific configuration, the malleable C2 user-agent was set to match that of our Apache mod_rewrite rules, as well as the URLs used for GET and POST requests.&lt;/p&gt;
+
+&lt;p&gt;User-Agent&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/C2-Redirection-for-Offensive-Operations/user-agent.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;GET Requests&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/C2-Redirection-for-Offensive-Operations/get-request.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;POST Requests&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/C2-Redirection-for-Offensive-Operations/post-request.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;The below Wireshark capture is from the Cobalt Strike payload being executed. The user-agent and the requested URL match that of the Apache webserver configuration, so the server responds with a 200 (OK) code and our traffic is proxied to our Cobalt Strike C2 server. The resulting beacon can be seen below.&lt;/p&gt;
+
+&lt;p&gt;&lt;em&gt;*pc-tech.pro is located at IP 3.16.149.234*&lt;/em&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/C2-Redirection-for-Offensive-Operations/wireshark.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;The source IP address can be seen as 3.16.149.234, which is our Apache server.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/C2-Redirection-for-Offensive-Operations/cobalt-strike.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;The following Wireshark capture is that of a browser requesting the same URL, but as the user-agent string is not correct, the Apache webserver returns a 302-redirect response, and forwards the session to “&lt;em&gt;computertechpro.net&lt;/em&gt;”. As this page does not exist, a 404-error page is returned.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/C2-Redirection-for-Offensive-Operations/wireshark2.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Below is a diagram which illustrates the above concept on a high-level.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/C2-Redirection-for-Offensive-Operations/drawio.png&quot; alt=&quot;image-center&quot; class=&quot;align-center&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;This example is meant to be an introduction to the concept of redirection to hide C2 infrastructure. These tactics can become much more complex based on how complex the rule sets on the redirectors are.&lt;/p&gt;
+
+&lt;p&gt;These tactics can also be used in the instance of compromised domains. An attacker could compromise a legitimate website and modify the server configuration files to redirect certain users to malicious addresses. If this is a trusted site, it may not return as malicious on threat feeds or other intelligence.&lt;/p&gt;</content><author><name>Zach Stein</name></author><summary type="html">When creating a command-and-control infrastructure, it is common for the callbacks to not communicate directly to the attacker’s C2 server. Many times, they will go through a compromised webpage, or a fake site used as a redirector. A redirector is basically a server that will take requests and forward them to another address, such as the real malicious server. This is to hide the underlying attacker address if the C2 traffic is ever discovered. Have you ever analyzed a web address that was flagged as malicious, only to see a seemingly benign or a 404-error page? This may indicate that the page is not malicious or no longer existing, but it could also indicate the page is being used as a redirector/proxy. Apache, Nginx, and other web servers have the ability to proxy/redirect traffic when desired conditions are met. This is useful from an attacking perspective as it can add an extra layer of obfuscation to an analyst observing the traffic. To demonstrate this, we set up a public facing Apache server at domain “pc-tech.pro” as a redirector and configured the .htaccess file to proxy or redirect traffic based on different “rules”. This can be done through Apache’s mod_rewrite. What the above .htaccess file does, is that every web request to our domain will be redirected or proxied based on the RewriteConditions. The logic of this file is as follows: IF: 1) If the requested URL is any of: d/ref=ab_sb_ns_1/7888-0262949/field-keywords=ads D15/afa/amzn.us.sr.aps about-us contact-us AND: 2) The user-agent string is: “Mozilla/5.0 (Windows NT 6.1; WOW64; Trident/7.0; rv:11.0) like Gecko” THEN: 3) Proxy traffic to http://13.59.197.154 (our Cobalt Strike server) at the requested URL ELSE: 4) Return a 302 (Found) response and redirect to https://computertechpro.net (some other legitimate site) at the requested URL To demonstrate how these rules work, we added a plugin to a Firefox web browser to change the user-agent in the requests. We then hosted a file on our Cobalt Strike attacker server to show what conditions need to be met to observe it. Making a request with the incorrect user-agent, but correct URL: Request: http://pc-tech.pro/contact-us Request: http://pc-tech.pro/d/ref=ab_sb_ns_1/7888-0262949/field-keywords=ads Making a request with the correct user-agent and correct URL: Request: http://pc-tech.pro/contact-us Making a request with any user-agent and incorrect URL: Request: http://pc-tech.pro/test Modifying for C2 traffic Within Cobalt Strike’s malleable C2 framework, fields such as the user-agent and callback URLs can be modified based on the infrastructure needs. For this specific configuration, the malleable C2 user-agent was set to match that of our Apache mod_rewrite rules, as well as the URLs used for GET and POST requests. User-Agent GET Requests POST Requests The below Wireshark capture is from the Cobalt Strike payload being executed. The user-agent and the requested URL match that of the Apache webserver configuration, so the server responds with a 200 (OK) code and our traffic is proxied to our Cobalt Strike C2 server. The resulting beacon can be seen below. *pc-tech.pro is located at IP 3.16.149.234* The source IP address can be seen as 3.16.149.234, which is our Apache server. The following Wireshark capture is that of a browser requesting the same URL, but as the user-agent string is not correct, the Apache webserver returns a 302-redirect response, and forwards the session to “computertechpro.net”. As this page does not exist, a 404-error page is returned. Below is a diagram which illustrates the above concept on a high-level. This example is meant to be an introduction to the concept of redirection to hide C2 infrastructure. These tactics can become much more complex based on how complex the rule sets on the redirectors are. These tactics can also be used in the instance of compromised domains. An attacker could compromise a legitimate website and modify the server configuration files to redirect certain users to malicious addresses. If this is a trusted site, it may not return as malicious on threat feeds or other intelligence.</summary></entry><entry><title type="html">Oauth Token Stealing</title><link href="http://localhost:4000/OAuth-Token-Stealing/" rel="alternate" type="text/html" title="Oauth Token Stealing" /><published>2020-05-29T00:00:00-04:00</published><updated>2020-05-29T00:00:00-04:00</updated><id>http://localhost:4000/OAuth-Token-Stealing</id><content type="html" xml:base="http://localhost:4000/OAuth-Token-Stealing/">&lt;h1 id=&quot;preface&quot;&gt;Preface&lt;/h1&gt;
 
 &lt;p&gt;The techniques presented in this paper are not necessarily new and were not initially discovered by myself. There is notable research that was done by &lt;a href=&quot;https://www.fireeye.com/blog/threat-research/2018/05/shining-a-light-on-oauth-abuse-with-pwnauth.html&quot;&gt;FireEye&lt;/a&gt; and &lt;a href=&quot;https://www.mdsec.co.uk/2019/07/introducing-the-office-365-attack-toolkit/&quot;&gt;MDSec&lt;/a&gt; prior to this publication that sparked this report. The goal of this post is to build on their research, give a background of the techniques used, and present new tools for security teams to use as testing frameworks in the future.&lt;/p&gt;
 
@@ -319,7 +1340,7 @@
 
 &lt;p&gt;FireEye has even published a PowerShell script which can help administrators hunt for malicious applications within their cloud environments. The tool can be found on &lt;a href=&quot;https://github.com/dmb2168/OAuthHunting&quot;&gt;GitHub&lt;/a&gt;.&lt;/p&gt;
 
-&lt;p&gt;If you are an end user, be sure to always review third party permissions before granting access to your accounts, whether personal or professional. When in doubt, confirm with your administrator whether the application is legitimate or not.&lt;/p&gt;</content><author><name>Zach Stein</name></author><summary type="html">Preface</summary></entry><entry><title type="html">Weaponizing 28 Year Old Xlm Macros</title><link href="http://localhost:4000/Weaponizing-28-Year-Old-XLM-Macros/" rel="alternate" type="text/html" title="Weaponizing 28 Year Old Xlm Macros" /><published>2020-05-25T00:00:00-04:00</published><updated>2020-05-25T00:00:00-04:00</updated><id>http://localhost:4000/Weaponizing-28-Year-Old-XLM-Macros</id><content type="html" xml:base="http://localhost:4000/Weaponizing-28-Year-Old-XLM-Macros/">&lt;h1 id=&quot;overview&quot;&gt;Overview&lt;/h1&gt;
+&lt;p&gt;If you are an end user, be sure to always review third party permissions before granting access to your accounts, whether personal or professional. When in doubt, confirm with your administrator whether the application is legitimate or not.&lt;/p&gt;</content><author><name>Zach Stein</name></author><summary type="html">Preface</summary></entry><entry><title type="html">Weaponizing 28 Year Old XLM Macros</title><link href="http://localhost:4000/Weaponizing-28-Year-Old-XLM-Macros/" rel="alternate" type="text/html" title="Weaponizing 28 Year Old XLM Macros" /><published>2020-05-25T00:00:00-04:00</published><updated>2020-05-25T00:00:00-04:00</updated><id>http://localhost:4000/Weaponizing-28-Year-Old-XLM-Macros</id><content type="html" xml:base="http://localhost:4000/Weaponizing-28-Year-Old-XLM-Macros/">&lt;h1 id=&quot;overview&quot;&gt;Overview&lt;/h1&gt;
 
 &lt;p&gt;Excel 4.0 macros (XLM macros) are a feature of Microsoft Excel that date back to 1992. These macros can be embedded into an Excel sheet and do not use VBA. This is significant as many modern exploit campaigns utilize &lt;a href=&quot;https://docs.microsoft.com/en-us/office/vba/api/overview/&quot;&gt;VBA&lt;/a&gt; (Visual Basic for Applications) macros, which many security appliances have signatures for.&lt;/p&gt;
 
